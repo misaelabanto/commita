@@ -1,0 +1,5 @@
+MODEL=gpt-4o-mini
+PROMPT_STYLE=default
+COMMIT_STYLE=conventional
+OPENAI_API_KEY=your-openai-api-key-here
+

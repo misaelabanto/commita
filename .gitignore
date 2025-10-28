@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.commita
+.env
+*.log
+.DS_Store
+bun.lockb
+commita

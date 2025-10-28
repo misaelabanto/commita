@@ -1,0 +1,31 @@
+{
+  "name": "commita",
+  "version": "1.0.0",
+  "description": "AI-powered git auto-commit tool",
+  "module": "index.ts",
+  "type": "module",
+  "private": true,
+  "bin": {
+    "commita": "./index.ts"
+  },
+  "scripts": {
+    "dev": "bun run index.ts",
+    "build": "bun build index.ts --outdir dist --target bun",
+    "commita": "bun run index.ts"
+  },
+  "dependencies": {
+    "commander": "^12.1.0",
+    "openai": "^4.77.0",
+    "simple-git": "^3.27.0",
+    "chalk": "^5.3.0",
+    "dotenv": "^16.4.7",
+    "minimatch": "^10.0.1"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/minimatch": "^5.1.2"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  }
+}
