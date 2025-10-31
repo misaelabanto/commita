@@ -298,6 +298,12 @@ bun run dev
 bun test
 ```
 
+### Build to Binary
+
+```bash
+bun build index.ts --compile --outfile commita
+```
+
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
