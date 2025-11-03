@@ -3,6 +3,7 @@ import { CommitHandler } from '@/cli/commit-handler.ts';
 import { ConfigLoader } from '@/config/config.loader.ts';
 import chalk from 'chalk';
 import { Command } from 'commander';
+import packageJson from '../../package.json' with { type: 'json' };
 
 export async function runCLI() {
   const program = new Command();
@@ -10,11 +11,11 @@ export async function runCLI() {
   program
     .name('commita')
     .description('AI-powered git auto-commit tool')
-    .version('1.0.1')
-    .option('--all', 'Process all changes grouped by folders', false)
-    .option('--ignore <patterns>', 'Comma-separated patterns to exclude', '')
+    .version(packageJson.version, '-v, --version', 'Show version number')
+    .option('-a, --all', 'Process all changes grouped by folders', false)
+    .option('-i, --ignore <patterns>', 'Comma-separated patterns to exclude', '')
     .option('--no-push', 'Skip pushing after commit')
-    .option('--config <path>', 'Path to custom config file')
+    .option('-c, --config <path>', 'Path to custom config file')
     .action(async (options: CommitOptions) => {
       try {
         const configLoader = new ConfigLoader();
