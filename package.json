@@ -1,6 +1,6 @@
 {
   "name": "commita",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "AI-powered git auto-commit tool",
   "module": "index.ts",
   "type": "module",
