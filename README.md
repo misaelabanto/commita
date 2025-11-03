@@ -214,7 +214,7 @@ refactor(profile): restructure profile service
 - If you have **staged changes** and run without `--all`: processes staged files, grouped by folders, and creates multiple commits
 - If you have **staged changes** and run with `--all`: ignores staged files and processes all unstaged changes grouped by folders
 - If you have **no staged changes** and run without `--all`: exits with error
-- **Note**: Previously, only the first group of staged changes was committed. This has been resolved to correctly process all grouped staged changes.
+- **Note**: Commita temporarily unstages the files you selected so it can create one commit per folder, then restages and commits each group for you.
 - Use this to control exactly which files get committed together
 
 ## Advanced Usage Examples
