@@ -211,7 +211,7 @@ refactor(profile): restructure profile service
 - The `--all` flag
 
 **Behavior**:
-- If you have **staged changes** and run without `--all`: commits staged files only
+- If you have **staged changes** and run without `--all`: processes staged files, grouped by folders, and creates multiple commits
 - If you have **staged changes** and run with `--all`: ignores staged files and processes all unstaged changes grouped by folders
 - If you have **no staged changes** and run without `--all`: exits with error
 - Use this to control exactly which files get committed together

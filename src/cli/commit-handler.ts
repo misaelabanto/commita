@@ -46,8 +46,8 @@ export class CommitHandler {
       }
 
       if (stagedChanges.length > 0 && !options.all) {
-        console.log(chalk.yellow('📦 Found staged changes. Processing them first...\n'));
-        await this.processStagedChanges(stagedChanges);
+        console.log(chalk.yellow('📦 Found staged changes. Grouping and processing them...\n'));
+        await this.processGroupedStagedChanges(stagedChanges);
       } else if (stagedChanges.length > 0 && options.all) {
         console.log(chalk.yellow('⚠️  Ignoring staged changes due to --all flag\n'));
       }
@@ -71,26 +71,46 @@ export class CommitHandler {
     }
   }
 
-  private async processStagedChanges(stagedChanges: FileChange[]): Promise<void> {
-    const files = stagedChanges.map(f => f.path);
-    const diff = await this.gitService.getDiff(files, true);
-
-    if (!diff) {
-      console.log(chalk.yellow('No diff found for staged files. Skipping...'));
+  private async _processChangesInGroups(changes: FileChange[], isStaged: boolean): Promise<void> {
+    if (changes.length === 0) {
+      console.log(chalk.yellow(`No ${isStaged ? 'staged' : 'unstaged'} changes found to group. Skipping...`));
       return;
     }
 
-    console.log(chalk.cyan(`Generating commit message for ${files.length} staged file(s)...`));
+    const groups = this.fileGrouper.groupByPath(changes);
+    const optimizedGroups = this.fileGrouper.optimizeGroups(groups);
 
-    const scope = this.extractScopeFromFiles(files);
-    const message = await this.aiService.generateCommitMessage(diff, files, scope);
+    console.log(chalk.blue(`Found ${optimizedGroups.length} group(s) of ${isStaged ? 'staged' : 'unstaged'} changes:\n`));
 
-    console.log(chalk.gray('\nCommit message:'));
-    console.log(chalk.white(message));
-    console.log();
+    for (const [index, group] of optimizedGroups.entries()) {
+      console.log(chalk.cyan(`\n[${index + 1}/${optimizedGroups.length}] Processing ${isStaged ? 'staged' : 'unstaged'}: ${group.scope}`));
+      console.log(chalk.gray(`Files: ${group.files.map(f => f.path).join(', ')}\n`));
 
-    await this.gitService.commit(message);
-    console.log(chalk.green('✓ Committed staged changes\n'));
+      const files = group.files.map(f => f.path);
+      const diff = await this.gitService.getDiff(files, isStaged);
+
+      if (!diff) {
+        console.log(chalk.yellow(`  No diff found for this ${isStaged ? 'staged' : 'unstaged'} group. Skipping...`));
+        continue;
+      }
+
+      console.log(chalk.cyan('  Generating commit message...'));
+      const message = await this.aiService.generateCommitMessage(diff, files, group.scope);
+
+      console.log(chalk.gray('  Commit message:'));
+      console.log(chalk.white(`  ${message.replace(/\n/g, '\n  ')}`));
+      console.log();
+
+      if (!isStaged) {
+        await this.gitService.stageFiles(files);
+      }
+      await this.gitService.commit(message);
+      console.log(chalk.green(`  ✓ Committed ${files.length} ${isStaged ? 'staged' : 'unstaged'} file(s)`));
+    }
+  }
+
+  private async processGroupedStagedChanges(stagedChanges: FileChange[]): Promise<void> {
+    await this._processChangesInGroups(stagedChanges, true);
   }
 
   private async processAllChanges(patternMatcher: PatternMatcher): Promise<void> {
@@ -108,34 +128,7 @@ export class CommitHandler {
       return;
     }
 
-    const groups = this.fileGrouper.groupByPath(filteredChanges);
-    const optimizedGroups = this.fileGrouper.optimizeGroups(groups);
-
-    console.log(chalk.blue(`Found ${optimizedGroups.length} group(s) of changes:\n`));
-
-    for (const [index, group] of optimizedGroups.entries()) {
-      console.log(chalk.cyan(`\n[${index + 1}/${optimizedGroups.length}] Processing: ${group.scope}`));
-      console.log(chalk.gray(`Files: ${group.files.map(f => f.path).join(', ')}\n`));
-
-      const files = group.files.map(f => f.path);
-      const diff = await this.gitService.getDiff(files, false);
-
-      if (!diff) {
-        console.log(chalk.yellow('  No diff found. Skipping...'));
-        continue;
-      }
-
-      console.log(chalk.cyan('  Generating commit message...'));
-      const message = await this.aiService.generateCommitMessage(diff, files, group.scope);
-
-      console.log(chalk.gray('  Commit message:'));
-      console.log(chalk.white(`  ${message.replace(/\n/g, '\n  ')}`));
-      console.log();
-
-      await this.gitService.stageFiles(files);
-      await this.gitService.commit(message);
-      console.log(chalk.green(`  ✓ Committed ${files.length} file(s)`));
-    }
+    await this._processChangesInGroups(filteredChanges, false);
   }
 
   private async pushChanges(): Promise<void> {
