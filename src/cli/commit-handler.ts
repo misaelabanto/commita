@@ -77,6 +77,11 @@ export class CommitHandler {
       return;
     }
 
+    if (isStaged) {
+      const allFiles = changes.map(f => f.path);
+      await this.gitService.unstageFiles(allFiles);
+    }
+
     const groups = this.fileGrouper.groupByPath(changes);
     const optimizedGroups = this.fileGrouper.optimizeGroups(groups);
 
@@ -87,7 +92,7 @@ export class CommitHandler {
       console.log(chalk.gray(`Files: ${group.files.map(f => f.path).join(', ')}\n`));
 
       const files = group.files.map(f => f.path);
-      const diff = await this.gitService.getDiff(files, isStaged);
+      const diff = await this.gitService.getDiff(files, false);
 
       if (!diff) {
         console.log(chalk.yellow(`  No diff found for this ${isStaged ? 'staged' : 'unstaged'} group. Skipping...`));
@@ -101,15 +106,9 @@ export class CommitHandler {
       console.log(chalk.white(`  ${message.replace(/\n/g, '\n  ')}`));
       console.log();
 
-      if (!isStaged) {
-        await this.gitService.stageFiles(files);
-      }
+      await this.gitService.stageFiles(files);
       await this.gitService.commit(message);
-      console.log(chalk.green(`  ✓ Committed ${files.length} ${isStaged ? 'staged' : 'unstaged'} file(s)`));
-
-      if (isStaged) {
-        await this.gitService.unstageFiles(files);
-      }
+      console.log(chalk.green(`  \u2713 Committed ${files.length} ${isStaged ? 'staged' : 'unstaged'} file(s)`));
     }
   }
 
