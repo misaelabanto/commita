@@ -4,7 +4,7 @@
   "description": "AI-powered git auto-commit tool",
   "module": "index.ts",
   "type": "module",
-  "private": true,
+  "private": false,
   "bin": {
     "commita": "./index.ts"
   },
