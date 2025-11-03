@@ -100,6 +100,11 @@ index 0000000..0000000
     await this.git.add(files);
   }
 
+  async unstageFiles(files: string[]): Promise<void> {
+    if (files.length === 0) return;
+    await this.git.reset(['HEAD', '--', ...files]);
+  }
+
   async commit(message: string): Promise<void> {
     await this.git.commit(message);
   }

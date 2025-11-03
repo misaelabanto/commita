@@ -106,6 +106,10 @@ export class CommitHandler {
       }
       await this.gitService.commit(message);
       console.log(chalk.green(`  ✓ Committed ${files.length} ${isStaged ? 'staged' : 'unstaged'} file(s)`));
+
+      if (isStaged) {
+        await this.gitService.unstageFiles(files);
+      }
     }
   }
 
