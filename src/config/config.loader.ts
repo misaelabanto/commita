@@ -1,4 +1,4 @@
-import type { CommitaConfig, CommitStyle, PromptStyle } from '@/config/config.types.ts';
+import type { CommitaConfig, CommitStyle, PromptStyle, Provider } from '@/config/config.types.ts';
 import { DEFAULT_CONFIG } from '@/config/config.types.ts';
 import { existsSync } from 'fs';
 import { readFile } from 'fs/promises';
@@ -47,6 +47,9 @@ export class ConfigLoader {
       const normalizedKey = key.trim().toUpperCase();
 
       switch (normalizedKey) {
+        case 'PROVIDER':
+          config.provider = value as Provider;
+          break;
         case 'MODEL':
           config.model = value;
           break;
@@ -65,6 +68,9 @@ export class ConfigLoader {
         case 'OPENAI_API_KEY':
           config.openaiApiKey = value;
           break;
+        case 'GEMINI_API_KEY':
+          config.geminiApiKey = value;
+          break;
       }
     }
 
@@ -74,6 +80,9 @@ export class ConfigLoader {
   private loadFromEnv(): Partial<CommitaConfig> {
     const config: Partial<CommitaConfig> = {};
 
+    if (process.env.COMMITA_PROVIDER) {
+      config.provider = process.env.COMMITA_PROVIDER as Provider;
+    }
     if (process.env.COMMITA_MODEL) {
       config.model = process.env.COMMITA_MODEL;
     }
@@ -91,6 +100,12 @@ export class ConfigLoader {
     }
     if (process.env.OPENAI_API_KEY) {
       config.openaiApiKey = process.env.OPENAI_API_KEY;
+    }
+    if (process.env.GEMINI_API_KEY) {
+      config.geminiApiKey = process.env.GEMINI_API_KEY;
+    }
+    if (process.env.GOOGLE_GENERATIVE_AI_API_KEY && !config.geminiApiKey) {
+      config.geminiApiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
     }
 
     return config;
