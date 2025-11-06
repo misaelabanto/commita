@@ -2,48 +2,49 @@ import { CommitTypeAnalyzer } from '@/ai/commit-type-analyzer.ts';
 import { EmojiMapper } from '@/ai/emoji-mapper.ts';
 import type { CommitaConfig } from '@/config/config.types.ts';
 import { PROMPT_TEMPLATES } from '@/config/prompt-templates.ts';
-import OpenAI from 'openai';
+import { openai, createOpenAI } from '@ai-sdk/openai';
+import { google, createGoogleGenerativeAI } from '@ai-sdk/google';
+import { generateText } from 'ai';
 
-export class OpenAIService {
-  private client: OpenAI;
+export class AIService {
   private config: CommitaConfig;
   private typeAnalyzer: CommitTypeAnalyzer;
   private emojiMapper: EmojiMapper;
 
   constructor(config: CommitaConfig) {
-    if (!config.openaiApiKey) {
-      throw new Error('OpenAI API key is required. Set it in .commita file or OPENAI_API_KEY env var.');
-    }
-
-    this.client = new OpenAI({
-      apiKey: config.openaiApiKey,
-    });
     this.config = config;
     this.typeAnalyzer = new CommitTypeAnalyzer();
     this.emojiMapper = new EmojiMapper();
+
+    this.validateConfig();
+  }
+
+  private validateConfig(): void {
+    if (this.config.provider === 'openai' && !this.config.openaiApiKey) {
+      throw new Error('OpenAI API key is required. Set it in .commita file or OPENAI_API_KEY env var.');
+    }
+
+    if (this.config.provider === 'gemini' && !this.config.geminiApiKey) {
+      throw new Error('Gemini API key is required. Set it in .commita file or GEMINI_API_KEY env var.');
+    }
   }
 
   async generateCommitMessage(diff: string, files: string[], scope: string): Promise<string> {
     const prompt = this.buildPrompt(diff);
 
     try {
-      const completion = await this.client.chat.completions.create({
-        model: this.config.model,
-        messages: [
-          {
-            role: 'system',
-            content: 'You are a helpful assistant that generates concise git commit messages. The response should be plain text without any markdown formatting.',
-          },
-          {
-            role: 'user',
-            content: prompt,
-          },
-        ],
+      const provider = this.getProvider();
+      const model = provider(this.config.model);
+
+      const { text } = await generateText({
+        model,
+        system: 'You are a helpful assistant that generates concise git commit messages. The response should be plain text without any markdown formatting.',
+        prompt,
         temperature: 0.7,
-        max_tokens: 500,
+        maxTokens: 500,
       });
 
-      let message = completion.choices[0]?.message?.content?.replace(/^```\n*((.*\n*)+)```$/, '$1').trim() || '';
+      let message = text.replace(/^```\n*((.*\n*)+)```$/, '$1').trim() || '';
 
       if (!message) {
         const commitType = this.typeAnalyzer.analyzeFromDiff(diff, files);
@@ -66,6 +67,25 @@ export class OpenAIService {
 
       return fallbackMessage;
     }
+  }
+
+  private getProvider() {
+    if (this.config.provider === 'gemini') {
+      if (this.config.geminiApiKey) {
+        return createGoogleGenerativeAI({
+          apiKey: this.config.geminiApiKey,
+        });
+      }
+      return google;
+    }
+
+    if (this.config.openaiApiKey) {
+      return createOpenAI({
+        apiKey: this.config.openaiApiKey,
+      });
+    }
+
+    return openai;
   }
 
   private buildPrompt(diff: string): string {
