@@ -4,7 +4,8 @@ AI-powered git auto-commit tool that intelligently groups your changes and gener
 
 ## Features
 
-- **AI-Generated Commit Messages**: Uses OpenAI to analyze diffs and create descriptive commit messages
+- **AI-Generated Commit Messages**: Uses OpenAI or Google Gemini to analyze diffs and create descriptive commit messages
+- **Multiple AI Providers**: Support for both OpenAI and Google Gemini via the Vercel AI SDK
 - **Intelligent File Grouping**: Automatically groups files by their directory structure for organized commits
 - **Configurable**: Customize prompts, models, and commit styles
 - **Multiple Commit Styles**: Support for conventional commits and emoji commits
@@ -40,7 +41,7 @@ bun install
 2. Create a `.commita` file or set environment variables:
 ```bash
 cp .commita.example .commita
-# Edit .commita and add your OpenAI API key
+# Edit .commita and add your API key (OpenAI or Gemini)
 ```
 
 3. Navigate to your project and run:
@@ -55,29 +56,53 @@ Create a `.commita` file in your project root or use environment variables with 
 ### `.commita` file format (key=value):
 
 ```
+PROVIDER=openai
 MODEL=gpt-4o-mini
 PROMPT_STYLE=default
 COMMIT_STYLE=conventional
 OPENAI_API_KEY=sk-...
 ```
 
+Or for Gemini:
+```
+PROVIDER=gemini
+MODEL=gemini-2.5-flash
+PROMPT_STYLE=default
+COMMIT_STYLE=conventional
+GEMINI_API_KEY=your-gemini-api-key
+```
+
 ### Environment Variables:
 
 ```bash
+export COMMITA_PROVIDER=openai
 export COMMITA_MODEL=gpt-4o-mini
 export COMMITA_PROMPT_STYLE=default
 export COMMITA_COMMIT_STYLE=emoji
 export OPENAI_API_KEY=sk-...
 ```
 
+Or for Gemini:
+```bash
+export COMMITA_PROVIDER=gemini
+export COMMITA_MODEL=gemini-2.5-flash
+export GEMINI_API_KEY=your-gemini-api-key
+```
+
 ### Configuration Options
 
-- **MODEL**: OpenAI model to use (default: `gpt-4o-mini`)
+- **PROVIDER**: AI provider to use - `openai` or `gemini` (default: `openai`)
+- **MODEL**: Model name to use (provider-specific)
+  - **OpenAI**: `gpt-4o-mini`, `gpt-4o`, `gpt-4-turbo`, etc.
+  - **Gemini**: `gemini-2.5-flash`, `gemini-2.5-pro`, `gemini-1.5-pro`, etc.
 - **PROMPT_STYLE**: One of `default`, `detailed`, `minimal`, or `custom`
 - **PROMPT_TEMPLATE**: Custom prompt template (when using custom style)
 - **CUSTOM_PROMPT**: Complete custom prompt (when using custom style)
 - **COMMIT_STYLE**: Either `conventional` or `emoji`
-- **OPENAI_API_KEY**: Your OpenAI API key (required)
+- **OPENAI_API_KEY**: Your OpenAI API key (required when `PROVIDER=openai`)
+- **GEMINI_API_KEY**: Your Gemini API key (required when `PROVIDER=gemini`)
+
+**Note**: You can also use `GOOGLE_GENERATIVE_AI_API_KEY` environment variable instead of `GEMINI_API_KEY`.
 
 ### Prompt Styles
 
@@ -259,17 +284,30 @@ bun run index.ts --all
 
 ## Troubleshooting
 
-### "OpenAI API key is required"
+### "OpenAI API key is required" or "Gemini API key is required"
 
-Make sure you have set your API key either in:
+Make sure you have set your API key for the selected provider:
+
+**For OpenAI:**
 - `.commita` file: `OPENAI_API_KEY=sk-...`
 - Environment variable: `export OPENAI_API_KEY=sk-...`
+
+**For Gemini:**
+- `.commita` file: `GEMINI_API_KEY=your-key`
+- Environment variable: `export GEMINI_API_KEY=your-key`
+- Or use: `export GOOGLE_GENERATIVE_AI_API_KEY=your-key`
 
 ### "No staged changes found"
 
 This error occurs when you run the tool without the `--all` flag and have no staged changes. Either:
 - Stage some changes: `git add <files>`
-- Use the `--all` flag: `commita --all`
+- Use the `--all` flag: `bun run index.ts --all`
+
+### Provider Selection
+
+Make sure you've selected the correct provider and set the corresponding API key:
+- Set `PROVIDER=openai` and provide `OPENAI_API_KEY`
+- Set `PROVIDER=gemini` and provide `GEMINI_API_KEY` (or `GOOGLE_GENERATIVE_AI_API_KEY`)
 
 ### Permission Denied
 
