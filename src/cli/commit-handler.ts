@@ -1,4 +1,4 @@
-import { OpenAIService } from '@/ai/openai.service.ts';
+import { AIService } from '@/ai/ai.service.ts';
 import type { CommitaConfig } from '@/config/config.types.ts';
 import { FileGrouper } from '@/git/file-grouper.ts';
 import type { FileChange } from '@/git/git.service.ts';
@@ -16,14 +16,14 @@ export interface CommitOptions {
 export class CommitHandler {
   private gitService: GitService;
   private fileGrouper: FileGrouper;
-  private aiService: OpenAIService;
+  private aiService: AIService;
   private config: CommitaConfig;
 
   constructor(config: CommitaConfig) {
     this.config = config;
     this.gitService = new GitService();
     this.fileGrouper = new FileGrouper();
-    this.aiService = new OpenAIService(config);
+    this.aiService = new AIService(config);
   }
 
   async execute(options: CommitOptions): Promise<void> {
