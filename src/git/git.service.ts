@@ -10,9 +10,21 @@ export interface FileChange {
 
 export class GitService {
   private git: SimpleGit;
+  private rootDir: string;
 
   constructor(workingDir?: string) {
-    this.git = simpleGit(workingDir || process.cwd());
+    this.rootDir = workingDir || process.cwd();
+    this.git = simpleGit(this.rootDir);
+  }
+
+  async init(): Promise<void> {
+    try {
+      const root = await this.git.revparse(['--show-toplevel']);
+      this.rootDir = root.trim();
+      this.git = simpleGit(this.rootDir);
+    } catch (error) {
+      // Fallback to cwd if not a git repo (will likely fail later but handles init)
+    }
   }
 
   async getStagedChanges(): Promise<FileChange[]> {
@@ -72,7 +84,7 @@ export class GitService {
 
   private async getNewFileDiff(filePath: string): Promise<string> {
     try {
-      const fullPath = join(process.cwd(), filePath);
+      const fullPath = join(this.rootDir, filePath);
       if (!existsSync(fullPath)) {
         return '';
       }
