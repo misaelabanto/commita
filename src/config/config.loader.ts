@@ -3,17 +3,24 @@ import { DEFAULT_CONFIG } from '@/config/config.types.ts';
 import { existsSync } from 'fs';
 import { readFile } from 'fs/promises';
 import { join } from 'path';
+import { homedir } from 'os';
 
 export class ConfigLoader {
   async load(configPath?: string): Promise<CommitaConfig> {
+    const globalConfig = await this.loadFromFile(this.getGlobalConfigPath());
     const fileConfig = await this.loadFromFile(configPath);
     const envConfig = this.loadFromEnv();
 
     return {
       ...DEFAULT_CONFIG,
+      ...globalConfig,
       ...fileConfig,
       ...envConfig,
     };
+  }
+
+  private getGlobalConfigPath(): string {
+    return join(homedir(), '.commita');
   }
 
   private async loadFromFile(configPath?: string): Promise<Partial<CommitaConfig>> {
