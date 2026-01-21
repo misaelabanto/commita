@@ -29,6 +29,8 @@ export class CommitHandler {
   async execute(options: CommitOptions): Promise<void> {
     console.log(chalk.blue('🤖 Commita - AI-powered auto-commit\n'));
 
+    await this.gitService.init();
+
     const patternMatcher = new PatternMatcher(
       PatternMatcher.parsePatterns(options.ignore)
     );

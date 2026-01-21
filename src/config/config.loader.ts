@@ -4,6 +4,7 @@ import { existsSync } from 'fs';
 import { readFile } from 'fs/promises';
 import { join } from 'path';
 import { homedir } from 'os';
+import simpleGit from 'simple-git';
 
 export class ConfigLoader {
   async load(configPath?: string): Promise<CommitaConfig> {
@@ -24,7 +25,27 @@ export class ConfigLoader {
   }
 
   private async loadFromFile(configPath?: string): Promise<Partial<CommitaConfig>> {
-    const path = configPath || join(process.cwd(), '.commita');
+    let path = configPath;
+
+    if (!path) {
+      const cwdPath = join(process.cwd(), '.commita');
+      if (existsSync(cwdPath)) {
+        path = cwdPath;
+      } else {
+        const gitRoot = await this.findGitRoot();
+        if (gitRoot) {
+          const rootPath = join(gitRoot, '.commita');
+          if (existsSync(rootPath)) {
+            path = rootPath;
+          }
+        }
+      }
+    }
+
+    // Fallback to default check if we still haven't found it or if it was explicitly provided
+    if (!path) {
+      path = join(process.cwd(), '.commita');
+    }
 
     if (!existsSync(path)) {
       return {};
@@ -36,6 +57,16 @@ export class ConfigLoader {
     } catch (error) {
       console.warn(`Warning: Could not read config file at ${path}`);
       return {};
+    }
+  }
+
+  private async findGitRoot(): Promise<string | null> {
+    try {
+      const git = simpleGit();
+      const root = await git.revparse(['--show-toplevel']);
+      return root.trim();
+    } catch {
+      return null;
     }
   }
 
@@ -118,4 +149,3 @@ export class ConfigLoader {
     return config;
   }
 }
-
