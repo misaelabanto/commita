@@ -3,6 +3,7 @@ import type { CommitaConfig } from '@/config/config.types.ts';
 import { FileGrouper } from '@/git/file-grouper.ts';
 import type { FileChange } from '@/git/git.service.ts';
 import { GitService } from '@/git/git.service.ts';
+import { ProjectDetector } from '@/git/project-detector.ts';
 import { PatternMatcher } from '@/utils/pattern-matcher.ts';
 import chalk from 'chalk';
 
@@ -30,6 +31,9 @@ export class CommitHandler {
     console.log(chalk.blue('🤖 Commita - AI-powered auto-commit\n'));
 
     await this.gitService.init();
+
+    const boundaries = ProjectDetector.detect(this.gitService.getRootDir());
+    this.fileGrouper = new FileGrouper(boundaries);
 
     const patternMatcher = new PatternMatcher(
       PatternMatcher.parsePatterns(options.ignore)
