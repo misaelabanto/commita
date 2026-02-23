@@ -17,6 +17,10 @@ export class GitService {
     this.git = simpleGit(this.rootDir);
   }
 
+  getRootDir(): string {
+    return this.rootDir;
+  }
+
   async init(): Promise<void> {
     try {
       const root = await this.git.revparse(['--show-toplevel']);
