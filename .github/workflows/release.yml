@@ -19,6 +19,8 @@ jobs:
             output: commita-darwin-arm64
           - target: bun-linux-x64
             output: commita-linux-amd64
+          - target: bun-linux-arm64
+            output: commita-linux-arm64
           - target: bun-windows-x64
             output: commita-windows-amd64.exe
 
@@ -80,4 +82,5 @@ jobs:
             commita-darwin-amd64
             commita-darwin-arm64
             commita-linux-amd64
+            commita-linux-arm64
             commita-windows-amd64.exe
