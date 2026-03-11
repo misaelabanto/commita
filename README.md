@@ -15,25 +15,34 @@ AI-powered git auto-commit tool that intelligently groups your changes and gener
 
 ## Installation
 
+Downloads the correct pre-compiled binary for your OS and architecture directly from [GitHub Releases](https://github.com/misaelabanto/commita/releases):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/misaelabanto/commita/main/install.sh | bash
+```
+
+Supported platforms:
+
+| OS    | x86_64 | arm64 |
+|-------|--------|-------|
+| macOS | ✅     | ✅    |
+| Linux | ✅     | ✅    |
+
+> Windows users: download the binary manually from the [Releases page](https://github.com/misaelabanto/commita/releases).
+
 ### Local Development
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/misaelabanto/commita.git
 cd commita
 bun install
-```
-
-### Global Installation (Coming Soon)
-
-```bash
-bun install -g commita
 ```
 
 ## Quick Start
 
 1. Clone and install dependencies:
 ```bash
-git clone <repository-url>
+git clone https://github.com/misaelabanto/commita.git
 cd commita
 bun install
 ```
@@ -46,7 +55,7 @@ cp .commita.example .commita
 
 3. Navigate to your project and run:
 ```bash
-/path/to/commita/index.ts --all
+commita --all
 ```
 
 ## Configuration

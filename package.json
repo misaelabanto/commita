@@ -1,7 +1,7 @@
 {
-  "name": "commita",
+  "name": "@misaelabanto/commita",
   "version": "1.0.1",
-  "description": "AI-powered git auto-commit tool",
+  "description": "AI-powered git auto-commit tool that intelligently groups your changes and generates meaningful commit messages",
   "module": "index.ts",
   "type": "module",
   "private": false,
@@ -13,6 +13,13 @@
     "build": "bun build index.ts --outdir dist --target bun",
     "commita": "bun run index.ts"
   },
+  "author": "Misael Abanto",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/misaelabanto/commita.git"
+  },
+  "homepage": "https://github.com/misaelabanto/commita#readme",
   "dependencies": {
     "@ai-sdk/google": "^2.0.28",
     "@ai-sdk/openai": "^2.0.62",
