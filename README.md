@@ -13,7 +13,21 @@ AI-powered git auto-commit tool that intelligently groups your changes and gener
 - **Pattern Filtering**: Exclude files using glob patterns with `--ignore`
 - **Auto-Push**: Automatically pushes commits to remote (can be disabled)
 
+## Requirements
+
+- An API key from one of the supported AI providers:
+  - **OpenAI** — get one at [platform.openai.com/api-keys](https://platform.openai.com/api-keys)
+  - **Google Gemini** — get one at [aistudio.google.com/api-keys](https://aistudio.google.com/api-keys)
+
 ## Installation
+
+### Option 1 — bun (requires [Bun](https://bun.sh) ≥ 1.0)
+
+```bash
+bun install -g @miselabanto/commita
+```
+
+### Option 2 — Shell script (no runtime required)
 
 Downloads the correct pre-compiled binary for your OS and architecture directly from [GitHub Releases](https://github.com/misaelabanto/commita/releases):
 
@@ -40,29 +54,41 @@ bun install
 
 ## Quick Start
 
-1. Clone and install dependencies:
+1. Set your API key and provider:
 ```bash
-git clone https://github.com/misaelabanto/commita.git
-cd commita
-bun install
+commita set OPENAI_API_KEY=sk-...
+# or for Gemini:
+commita set GEMINI_API_KEY=your-key
+commita set PROVIDER=gemini
 ```
 
-2. Create a `.commita` file or set environment variables:
-```bash
-cp .commita.example .commita
-# Edit .commita and add your API key (OpenAI or Gemini)
-```
-
-3. Navigate to your project and run:
+2. Navigate to your project and run:
 ```bash
 commita --all
 ```
 
 ## Configuration
 
-Create a `.commita` file in your project root or use environment variables with the `COMMITA_` prefix.
+### `commita set` (recommended)
 
-### `.commita` file format (key=value):
+Set config values from the command line. By default values are saved globally to `~/.commita`. Use `--local` to save them to `.commita` in the current project instead.
+
+```bash
+# Set values directly
+commita set PROVIDER=openai
+commita set MODEL=gpt-4o-mini
+
+# Omit the value to be prompted securely (input is hidden for API keys)
+commita set OPENAI_API_KEY
+commita set GEMINI_API_KEY
+
+# Save to the current project only
+commita set PROVIDER=gemini --local
+```
+
+### `.commita` file (manual)
+
+You can also create or edit a `.commita` file directly. Project-level (`./.commita`) takes precedence over global (`~/.commita`).
 
 ```
 PROVIDER=openai
@@ -81,7 +107,7 @@ COMMIT_STYLE=conventional
 GEMINI_API_KEY=your-gemini-api-key
 ```
 
-### Environment Variables:
+### Environment Variables
 
 ```bash
 export COMMITA_PROVIDER=openai
