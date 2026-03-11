@@ -37,12 +37,13 @@ curl -fsSL https://raw.githubusercontent.com/misaelabanto/commita/main/install.s
 
 Supported platforms:
 
-| OS    | x86_64 | arm64 |
-|-------|--------|-------|
-| macOS | ✅     | ✅    |
-| Linux | ✅     | ✅    |
+| OS      | x86_64                  | arm64 |
+|---------|-------------------------|-------|
+| macOS   | ✅                      | ✅    |
+| Linux   | ✅                      | ✅    |
+| Windows | ✅ (manual download) ¹  | ❌    |
 
-> Windows users: download the binary manually from the [Releases page](https://github.com/misaelabanto/commita/releases).
+> ¹ Windows users: download `commita-windows-amd64.exe` manually from the [Releases page](https://github.com/misaelabanto/commita/releases) and add it to your `PATH`.
 
 ### Local Development
 
