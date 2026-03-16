@@ -121,8 +121,12 @@ index 0000000..0000000
     await this.git.reset(['HEAD', '--', ...files]);
   }
 
-  async commit(message: string): Promise<void> {
-    await this.git.commit(message);
+  async commit(message: string, options?: { noVerify?: boolean }): Promise<void> {
+    if (options?.noVerify) {
+      await this.git.commit(message, undefined, { '--no-verify': null });
+    } else {
+      await this.git.commit(message);
+    }
   }
 
   async getCurrentBranch(): Promise<string> {
