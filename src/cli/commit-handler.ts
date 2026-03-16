@@ -11,6 +11,7 @@ export interface CommitOptions {
   all: boolean;
   ignore: string;
   push: boolean;
+  verify: boolean;
   config?: string;
 }
 
@@ -19,6 +20,7 @@ export class CommitHandler {
   private fileGrouper: FileGrouper;
   private aiService: AIService;
   private config: CommitaConfig;
+  private noVerify: boolean = false;
 
   constructor(config: CommitaConfig) {
     this.config = config;
@@ -29,6 +31,8 @@ export class CommitHandler {
 
   async execute(options: CommitOptions): Promise<void> {
     console.log(chalk.blue('🤖 Commita - AI-powered auto-commit\n'));
+
+    this.noVerify = !options.verify;
 
     await this.gitService.init();
 
@@ -113,7 +117,7 @@ export class CommitHandler {
       console.log();
 
       await this.gitService.stageFiles(files);
-      await this.gitService.commit(message);
+      await this.gitService.commit(message, { noVerify: this.noVerify });
       console.log(chalk.green(`  \u2713 Committed ${files.length} ${isStaged ? 'staged' : 'unstaged'} file(s)`));
     }
   }

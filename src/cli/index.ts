@@ -17,6 +17,7 @@ export async function runCLI() {
     .option('-a, --all', 'Process all changes grouped by folders', false)
     .option('-i, --ignore <patterns>', 'Comma-separated patterns to exclude', '')
     .option('--no-push', 'Skip pushing after commit')
+    .option('--no-verify', 'Bypass git pre-commit and commit-msg hooks')
     .option('-c, --config <path>', 'Path to custom config file')
     .action(async (options: CommitOptions) => {
       try {
