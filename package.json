@@ -1,6 +1,6 @@
 {
   "name": "@misaelabanto/commita",
-  "version": "0.1.3",
+  "version": "0.2.0",
   "description": "AI-powered git auto-commit tool that intelligently groups your changes and generates meaningful commit messages",
   "module": "index.ts",
   "type": "module",
