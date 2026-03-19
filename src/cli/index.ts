@@ -15,7 +15,7 @@ export async function runCLI() {
     .description('AI-powered git auto-commit tool')
     .version(packageJson.version, '-v, --version', 'Show version number')
     .option('-a, --all', 'Process all changes grouped by folders', false)
-    .option('-i, --ignore <patterns>', 'Comma-separated patterns to exclude', '')
+    .option('-i, --ignore <patterns>', 'Comma-separated glob patterns to exclude (e.g. "dumps,*.log,dist/*")', '')
     .option('--no-push', 'Skip pushing after commit')
     .option('--no-verify', 'Bypass git pre-commit and commit-msg hooks')
     .option('-c, --config <path>', 'Path to custom config file')
