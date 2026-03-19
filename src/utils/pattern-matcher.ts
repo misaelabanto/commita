@@ -13,7 +13,8 @@ export class PatternMatcher {
     }
 
     return this.patterns.some(pattern =>
-      minimatch(filePath, pattern, { dot: true })
+      minimatch(filePath, pattern, { dot: true }) ||
+      minimatch(filePath, `${pattern}/**`, { dot: true })
     );
   }
 
