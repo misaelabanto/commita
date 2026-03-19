@@ -209,11 +209,20 @@ bun run index.ts --all
 
 ### Ignore Patterns
 
-Exclude files matching patterns:
+Exclude files matching glob patterns. You can use folder names, glob wildcards, or both:
 
 ```bash
-bun run index.ts --all --ignore "*.log,node_modules/*,dist/*"
+# Ignore entire directories by name
+bun run index.ts --all --ignore "dumps,node_modules"
+
+# Ignore files by extension
+bun run index.ts --all --ignore "*.log,*.csv"
+
+# Mix folder names and glob patterns
+bun run index.ts --all --ignore "dumps,*.log,dist/*"
 ```
+
+> **Note**: Bare folder names like `dumps` automatically match all files inside that folder (equivalent to `dumps/**`).
 
 ### Skip Pushing
 
@@ -295,7 +304,7 @@ This will group files by their directories and create separate commits for each 
 Ignore build artifacts and logs:
 
 ```bash
-bun run index.ts --all --ignore "dist/*,*.log,coverage/*"
+bun run index.ts --all --ignore "dist,*.log,coverage"
 ```
 
 ### Scenario 3: Local Commits Only
