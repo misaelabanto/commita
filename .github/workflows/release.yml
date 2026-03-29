@@ -109,3 +109,30 @@ jobs:
             commita-linux-amd64
             commita-linux-arm64
             commita-windows-amd64.exe
+
+  npm-publish:
+    name: Publish to npm
+    needs: [build, version]
+    if: github.ref == 'refs/heads/main' && needs.version.outputs.new_tag != ''
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - uses: oven-sh/setup-bun@v2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      - run: bun install
+
+      - run: bun run build:node
+
+      - run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
