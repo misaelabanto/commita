@@ -21,13 +21,19 @@ AI-powered git auto-commit tool that intelligently groups your changes and gener
 
 ## Installation
 
-### Option 1 — bun (requires [Bun](https://bun.sh) ≥ 1.0)
+### Option 1 — bun (recommended, requires [Bun](https://bun.sh) ≥ 1.0)
 
 ```bash
-bun install -g @miselabanto/commita
+bun install -g @misaelabanto/commita
 ```
 
-### Option 2 — Shell script (no runtime required)
+### Option 2 — npm (requires Node.js ≥ 18)
+
+```bash
+npm install -g @misaelabanto/commita
+```
+
+### Option 3 — Shell script (no runtime required)
 
 Downloads the correct pre-compiled binary for your OS and architecture directly from [GitHub Releases](https://github.com/misaelabanto/commita/releases):
 

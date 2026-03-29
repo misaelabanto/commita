@@ -6,12 +6,23 @@
   "type": "module",
   "private": false,
   "bin": {
-    "commita": "./index.ts"
+    "commita": "./dist/index.js"
   },
+  "files": [
+    "dist/",
+    "scripts/postinstall.cjs",
+    "README.md"
+  ],
   "scripts": {
     "dev": "bun run index.ts",
     "build": "bun build index.ts --outdir dist --target bun",
+    "build:node": "bash scripts/build-node.sh",
+    "prepublishOnly": "bun run build:node",
+    "postinstall": "node scripts/postinstall.cjs || true",
     "commita": "bun run index.ts"
+  },
+  "engines": {
+    "node": ">=18"
   },
   "author": "Misael Abanto",
   "license": "MIT",
@@ -20,19 +31,17 @@
     "url": "git+https://github.com/misaelabanto/commita.git"
   },
   "homepage": "https://github.com/misaelabanto/commita#readme",
-  "dependencies": {
+  "devDependencies": {
     "@ai-sdk/google": "^2.0.28",
     "@ai-sdk/openai": "^2.0.62",
+    "@types/bun": "latest",
+    "@types/minimatch": "^5.1.2",
     "ai": "^5.0.87",
     "chalk": "^5.3.0",
     "commander": "^12.1.0",
     "dotenv": "^16.4.7",
     "minimatch": "^10.0.1",
     "simple-git": "^3.27.0"
-  },
-  "devDependencies": {
-    "@types/bun": "latest",
-    "@types/minimatch": "^5.1.2"
   },
   "peerDependencies": {
     "typescript": "^5"
