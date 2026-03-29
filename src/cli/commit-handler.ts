@@ -13,6 +13,8 @@ export interface CommitOptions {
   push: boolean;
   verify: boolean;
   config?: string;
+  dryRun: boolean;
+  status: boolean;
 }
 
 export class CommitHandler {
@@ -21,6 +23,7 @@ export class CommitHandler {
   private aiService: AIService;
   private config: CommitaConfig;
   private noVerify: boolean = false;
+  private dryRun: boolean = false;
 
   constructor(config: CommitaConfig) {
     this.config = config;
@@ -33,6 +36,7 @@ export class CommitHandler {
     console.log(chalk.blue('🤖 Commita - AI-powered auto-commit\n'));
 
     this.noVerify = !options.verify;
+    this.dryRun = options.dryRun;
 
     await this.gitService.init();
 
@@ -44,6 +48,11 @@ export class CommitHandler {
     );
 
     try {
+      if (options.status) {
+        await this.showStatus(patternMatcher);
+        return;
+      }
+
       const stagedChanges = await this.gitService.getStagedChanges();
 
       if (!options.all && stagedChanges.length === 0) {
@@ -66,11 +75,15 @@ export class CommitHandler {
         await this.processAllChanges(patternMatcher);
       }
 
-      if (options.push) {
+      if (options.push && !this.dryRun) {
         await this.pushChanges();
       }
 
-      console.log(chalk.green('\n✨ Done!\n'));
+      if (this.dryRun) {
+        console.log(chalk.yellow('\n🏃 Dry run complete — no changes were committed or pushed.\n'));
+      } else {
+        console.log(chalk.green('\n✨ Done!\n'));
+      }
     } catch (error) {
       if (error instanceof Error) {
         console.error(chalk.red(`\n❌ Error: ${error.message}\n`));
@@ -87,7 +100,7 @@ export class CommitHandler {
       return;
     }
 
-    if (isStaged) {
+    if (isStaged && !this.dryRun) {
       const allFiles = changes.map(f => f.path);
       await this.gitService.unstageFiles(allFiles);
     }
@@ -102,7 +115,7 @@ export class CommitHandler {
       console.log(chalk.gray(`Files: ${group.files.map(f => f.path).join(', ')}\n`));
 
       const files = group.files.map(f => f.path);
-      const diff = await this.gitService.getDiff(files, false);
+      const diff = await this.gitService.getDiff(files, isStaged && this.dryRun);
 
       if (!diff) {
         console.log(chalk.yellow(`  No diff found for this ${isStaged ? 'staged' : 'unstaged'} group. Skipping...`));
@@ -116,9 +129,13 @@ export class CommitHandler {
       console.log(chalk.white(`  ${message.replace(/\n/g, '\n  ')}`));
       console.log();
 
-      await this.gitService.stageFiles(files);
-      await this.gitService.commit(message, { noVerify: this.noVerify });
-      console.log(chalk.green(`  \u2713 Committed ${files.length} ${isStaged ? 'staged' : 'unstaged'} file(s)`));
+      if (this.dryRun) {
+        console.log(chalk.yellow(`  ⏭ Dry run — skipped committing ${files.length} file(s)`));
+      } else {
+        await this.gitService.stageFiles(files);
+        await this.gitService.commit(message, { noVerify: this.noVerify });
+        console.log(chalk.green(`  \u2713 Committed ${files.length} ${isStaged ? 'staged' : 'unstaged'} file(s)`));
+      }
     }
   }
 
@@ -162,6 +179,46 @@ export class CommitHandler {
       if (error instanceof Error) {
         console.log(chalk.gray(`   Reason: ${error.message}`));
       }
+    }
+  }
+
+  private async showStatus(patternMatcher: PatternMatcher): Promise<void> {
+    const stagedChanges = await this.gitService.getStagedChanges();
+    const unstagedChanges = await this.gitService.getUnstagedChanges();
+    const filteredUnstaged = patternMatcher.filterFiles(unstagedChanges);
+
+    if (stagedChanges.length === 0 && filteredUnstaged.length === 0) {
+      console.log(chalk.yellow('No changes found.\n'));
+      return;
+    }
+
+    if (stagedChanges.length > 0) {
+      console.log(chalk.green(`📦 Staged changes (${stagedChanges.length} file(s)):\n`));
+      const groups = this.fileGrouper.optimizeGroups(this.fileGrouper.groupByPath(stagedChanges));
+      for (const group of groups) {
+        console.log(chalk.cyan(`  [${group.scope}]`));
+        for (const file of group.files) {
+          console.log(chalk.gray(`    ${file.status} ${file.path}`));
+        }
+      }
+      console.log();
+    }
+
+    if (filteredUnstaged.length > 0) {
+      console.log(chalk.red(`📝 Unstaged changes (${filteredUnstaged.length} file(s)):\n`));
+      const groups = this.fileGrouper.optimizeGroups(this.fileGrouper.groupByPath(filteredUnstaged));
+      for (const group of groups) {
+        console.log(chalk.cyan(`  [${group.scope}]`));
+        for (const file of group.files) {
+          console.log(chalk.gray(`    ${file.status} ${file.path}`));
+        }
+      }
+      console.log();
+    }
+
+    const ignoredCount = unstagedChanges.length - filteredUnstaged.length;
+    if (ignoredCount > 0) {
+      console.log(chalk.gray(`  (${ignoredCount} file(s) excluded by ignore patterns)\n`));
     }
   }
 

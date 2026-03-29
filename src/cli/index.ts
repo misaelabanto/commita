@@ -19,6 +19,8 @@ export async function runCLI() {
     .option('--no-push', 'Skip pushing after commit')
     .option('--no-verify', 'Bypass git pre-commit and commit-msg hooks')
     .option('-c, --config <path>', 'Path to custom config file')
+    .option('-d, --dry-run', 'Show commit groups and messages without committing', false)
+    .option('-s, --status', 'Show a summary of staged and unstaged changes', false)
     .action(async (options: CommitOptions) => {
       try {
         const configLoader = new ConfigLoader();
