@@ -12,6 +12,9 @@ AI-powered git auto-commit tool that intelligently groups your changes and gener
 - **Bulk Operations**: Process all changes at once with the `--all` flag
 - **Pattern Filtering**: Exclude files using glob patterns with `--ignore`
 - **Auto-Push**: Automatically pushes commits to remote (can be disabled)
+- **Dry Run**: Preview commit groups and AI-generated messages without committing using `--dry-run`
+- **Status Summary**: Inspect staged/unstaged changes grouped by scope with `--status`
+- **Hook Bypass**: Skip git pre-commit and commit-msg hooks with `--no-verify`
 
 ## Requirements
 
@@ -202,7 +205,7 @@ Emoji mappings:
 
 ```bash
 git add <files>
-bun run index.ts
+commita
 ```
 
 ### Process All Changes
@@ -210,7 +213,30 @@ bun run index.ts
 Group all unstaged changes by folder and create multiple commits:
 
 ```bash
-bun run index.ts --all
+commita --all
+```
+
+### Dry Run
+
+Preview the commit groups and AI-generated messages without actually committing or pushing:
+
+```bash
+commita --all --dry-run
+# or short form
+commita --all -d
+```
+
+### Show Status
+
+Display a grouped summary of staged and unstaged changes (after applying `--ignore` patterns) without running the AI or committing:
+
+```bash
+commita --status
+# or short form
+commita -s
+
+# Combine with --ignore to preview filtering
+commita --status --ignore "dist,*.log"
 ```
 
 ### Ignore Patterns
@@ -219,13 +245,13 @@ Exclude files matching glob patterns. You can use folder names, glob wildcards, 
 
 ```bash
 # Ignore entire directories by name
-bun run index.ts --all --ignore "dumps,node_modules"
+commita --all --ignore "dumps,node_modules"
 
 # Ignore files by extension
-bun run index.ts --all --ignore "*.log,*.csv"
+commita --all --ignore "*.log,*.csv"
 
 # Mix folder names and glob patterns
-bun run index.ts --all --ignore "dumps,*.log,dist/*"
+commita --all --ignore "dumps,*.log,dist/*"
 ```
 
 > **Note**: Bare folder names like `dumps` automatically match all files inside that folder (equivalent to `dumps/**`).
@@ -235,7 +261,15 @@ bun run index.ts --all --ignore "dumps,*.log,dist/*"
 Don't push commits to remote:
 
 ```bash
-bun run index.ts --all --no-push
+commita --all --no-push
+```
+
+### Skip Git Hooks
+
+Bypass git `pre-commit` and `commit-msg` hooks (equivalent to `git commit --no-verify`):
+
+```bash
+commita --all --no-verify
 ```
 
 ### Custom Config File
@@ -243,8 +277,21 @@ bun run index.ts --all --no-push
 Use a different config file:
 
 ```bash
-bun run index.ts --config .commita.local
+commita --config .commita.local
 ```
+
+### All CLI Options
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--all` | `-a` | Process all changes grouped by folders |
+| `--ignore <patterns>` | `-i` | Comma-separated glob patterns to exclude |
+| `--dry-run` | `-d` | Show commit groups and messages without committing |
+| `--status` | `-s` | Show a summary of staged and unstaged changes |
+| `--config <path>` | `-c` | Path to custom config file |
+| `--no-push` | | Skip pushing after commit |
+| `--no-verify` | | Bypass git pre-commit and commit-msg hooks |
+| `--version` | `-v` | Show version number |
 
 ## How It Works
 
@@ -300,7 +347,7 @@ refactor(profile): restructure profile service
 You've been working on several features and want to commit them separately:
 
 ```bash
-bun run index.ts --all
+commita --all
 ```
 
 This will group files by their directories and create separate commits for each group.
@@ -310,7 +357,7 @@ This will group files by their directories and create separate commits for each 
 Ignore build artifacts and logs:
 
 ```bash
-bun run index.ts --all --ignore "dist,*.log,coverage"
+commita --all --ignore "dist,*.log,coverage"
 ```
 
 ### Scenario 3: Local Commits Only
@@ -318,7 +365,7 @@ bun run index.ts --all --ignore "dist,*.log,coverage"
 Commit without pushing to remote:
 
 ```bash
-bun run index.ts --all --no-push
+commita --all --no-push
 ```
 
 ### Scenario 4: Using Emoji Style
@@ -330,7 +377,23 @@ COMMIT_STYLE=emoji
 
 Then run:
 ```bash
-bun run index.ts --all
+commita --all
+```
+
+### Scenario 5: Preview Before Committing
+
+Generate and review the AI commit messages without making any changes to your repository:
+
+```bash
+commita --all --dry-run
+```
+
+### Scenario 6: Bypass Pre-Commit Hooks
+
+When you need to commit through hooks that aren't relevant to this change:
+
+```bash
+commita --all --no-verify
 ```
 
 ## Troubleshooting
@@ -352,7 +415,7 @@ Make sure you have set your API key for the selected provider:
 
 This error occurs when you run the tool without the `--all` flag and have no staged changes. Either:
 - Stage some changes: `git add <files>`
-- Use the `--all` flag: `bun run index.ts --all`
+- Use the `--all` flag: `commita --all`
 
 ### Provider Selection
 
@@ -360,19 +423,18 @@ Make sure you've selected the correct provider and set the corresponding API key
 - Set `PROVIDER=openai` and provide `OPENAI_API_KEY`
 - Set `PROVIDER=gemini` and provide `GEMINI_API_KEY` (or `GOOGLE_GENERATIVE_AI_API_KEY`)
 
-### Permission Denied
+### Running From Source (Local Development Only)
 
-Make sure the script is executable:
+If you cloned the repo instead of installing the `commita` binary, run the entry file with Bun — `@/` path aliases require it:
+
 ```bash
-chmod +x index.ts
+bun run index.ts          # ✓ Correct
+node index.ts             # ✗ Won't work (no Bun path-alias support)
 ```
 
-### Import Errors
-
-The project uses Bun's built-in support for `@/` path aliases. Make sure you're running with Bun, not Node.js:
+If you hit a permission error invoking `index.ts` directly, make sure it's executable:
 ```bash
-bun run index.ts  # ✓ Correct
-node index.ts     # ✗ Won't work
+chmod +x index.ts
 ```
 
 ## Development
