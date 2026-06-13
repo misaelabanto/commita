@@ -121,12 +121,38 @@ index 0000000..0000000
     await this.git.reset(['HEAD', '--', ...files]);
   }
 
-  async commit(message: string, options?: { noVerify?: boolean }): Promise<void> {
-    if (options?.noVerify) {
-      await this.git.commit(message, undefined, { '--no-verify': null });
-    } else {
-      await this.git.commit(message);
+  async commit(message: string, files: string[], options?: { noVerify?: boolean }): Promise<string> {
+    if (files.length === 0) {
+      throw new Error('commit called with empty pathspec; refusing whole-index commit');
     }
+    const opts = options?.noVerify ? { '--no-verify': null } : undefined;
+    const result = await this.git.commit(message, files, opts);
+    return result.commit;
+  }
+
+  async getHeadSha(): Promise<string | null> {
+    try {
+      return (await this.git.revparse(['HEAD'])).trim();
+    } catch {
+      return null; // unborn branch
+    }
+  }
+
+  async isIndexClean(): Promise<boolean> {
+    try {
+      const out = await this.git.raw(['diff', '--cached', '--name-only']);
+      return out.trim().length === 0; // no staged paths = clean
+    } catch {
+      return false;
+    }
+  }
+
+  async resetSoft(sha: string): Promise<void> {
+    await this.git.reset(['--soft', sha]);
+  }
+
+  async deleteHeadRef(): Promise<void> {
+    await this.git.raw(['update-ref', '-d', 'HEAD']);
   }
 
   async getCurrentBranch(): Promise<string> {
