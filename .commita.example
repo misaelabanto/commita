@@ -20,3 +20,17 @@ OPENAI_API_KEY=your-openai-api-key-here
 # GEMINI_API_KEY=your-gemini-api-key-here
 # Or use GOOGLE_GENERATIVE_AI_API_KEY environment variable
 
+# Grouping and safety (optional)
+# Grouping depth for files outside a detected project (default: 2, minimum 1)
+# GROUP_DEPTH=2
+# Auto-split groups larger than this many files (default: 0 = off)
+# MAX_FILES_PER_GROUP=0
+# File count at/above which a run requires confirmation (default: 100)
+# CONFIRM_THRESHOLD=100
+# Apply the built-in build/VCS-noise grouping ignore set (default: true)
+# DEFAULT_IGNORES=true
+# Roll back all commits from a run if any group fails (default: false)
+# ATOMIC=false
+# Abort a --all run when the index already has staged changes (default: false)
+# REQUIRE_CLEAN_INDEX=false
+
