@@ -109,6 +109,30 @@ export class ConfigLoader {
         case 'GEMINI_API_KEY':
           config.geminiApiKey = value;
           break;
+        case 'GROUP_DEPTH': {
+          const n = parseInt(value, 10);
+          if (!Number.isNaN(n)) config.groupDepth = n;
+          break;
+        }
+        case 'MAX_FILES_PER_GROUP': {
+          const n = parseInt(value, 10);
+          if (!Number.isNaN(n)) config.maxFilesPerGroup = n;
+          break;
+        }
+        case 'CONFIRM_THRESHOLD': {
+          const n = parseInt(value, 10);
+          if (!Number.isNaN(n)) config.confirmThreshold = n;
+          break;
+        }
+        case 'ATOMIC':
+          config.atomic = value.toLowerCase() === 'true';
+          break;
+        case 'REQUIRE_CLEAN_INDEX':
+          config.requireCleanIndex = value.toLowerCase() === 'true';
+          break;
+        case 'DEFAULT_IGNORES':
+          config.defaultIgnores = value.toLowerCase() === 'true';
+          break;
       }
     }
 
@@ -144,6 +168,27 @@ export class ConfigLoader {
     }
     if (process.env.GOOGLE_GENERATIVE_AI_API_KEY && !config.geminiApiKey) {
       config.geminiApiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+    }
+    if (process.env.COMMITA_GROUP_DEPTH) {
+      const n = parseInt(process.env.COMMITA_GROUP_DEPTH, 10);
+      if (!Number.isNaN(n)) config.groupDepth = n;
+    }
+    if (process.env.COMMITA_MAX_FILES_PER_GROUP) {
+      const n = parseInt(process.env.COMMITA_MAX_FILES_PER_GROUP, 10);
+      if (!Number.isNaN(n)) config.maxFilesPerGroup = n;
+    }
+    if (process.env.COMMITA_CONFIRM_THRESHOLD) {
+      const n = parseInt(process.env.COMMITA_CONFIRM_THRESHOLD, 10);
+      if (!Number.isNaN(n)) config.confirmThreshold = n;
+    }
+    if (process.env.COMMITA_ATOMIC) {
+      config.atomic = process.env.COMMITA_ATOMIC.toLowerCase() === 'true';
+    }
+    if (process.env.COMMITA_REQUIRE_CLEAN_INDEX) {
+      config.requireCleanIndex = process.env.COMMITA_REQUIRE_CLEAN_INDEX.toLowerCase() === 'true';
+    }
+    if (process.env.COMMITA_DEFAULT_IGNORES) {
+      config.defaultIgnores = process.env.COMMITA_DEFAULT_IGNORES.toLowerCase() === 'true';
     }
 
     return config;

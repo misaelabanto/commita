@@ -11,6 +11,12 @@ export interface CommitaConfig {
   commitStyle: CommitStyle;
   openaiApiKey?: string;
   geminiApiKey?: string;
+  groupDepth: number;
+  maxFilesPerGroup: number;
+  atomic: boolean;
+  requireCleanIndex: boolean;
+  confirmThreshold: number;
+  defaultIgnores: boolean;
 }
 
 export const DEFAULT_CONFIG: CommitaConfig = {
@@ -18,5 +24,11 @@ export const DEFAULT_CONFIG: CommitaConfig = {
   model: 'gpt-4o-mini',
   promptStyle: 'default',
   commitStyle: 'conventional',
+  groupDepth: 2,
+  maxFilesPerGroup: 0,
+  atomic: false,
+  requireCleanIndex: false,
+  confirmThreshold: 100,
+  defaultIgnores: true,
 };
 
