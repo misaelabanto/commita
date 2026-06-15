@@ -1,7 +1,6 @@
 import type { CommitStyle, PromptStyle, Provider } from '@/config/config.types.ts';
 import { existsSync } from 'fs';
 import { readFile, writeFile, chmod } from 'fs/promises';
-import { join } from 'path';
 
 interface ConfigLine {
   type: 'comment' | 'blank' | 'config';
@@ -19,6 +18,12 @@ const VALID_KEYS = [
   'PROMPT_STYLE',
   'PROMPT_TEMPLATE',
   'CUSTOM_PROMPT',
+  'GROUP_DEPTH',
+  'MAX_FILES_PER_GROUP',
+  'CONFIRM_THRESHOLD',
+  'ATOMIC',
+  'REQUIRE_CLEAN_INDEX',
+  'DEFAULT_IGNORES',
 ];
 
 const VALID_PROVIDERS: Provider[] = ['openai', 'gemini'];
@@ -82,6 +87,42 @@ export class ConfigWriter {
           );
         }
         break;
+      case 'GROUP_DEPTH':
+        this.validateInteger('GROUP_DEPTH', value, 1);
+        break;
+      case 'MAX_FILES_PER_GROUP':
+        this.validateInteger('MAX_FILES_PER_GROUP', value, 0);
+        break;
+      case 'CONFIRM_THRESHOLD':
+        this.validateInteger('CONFIRM_THRESHOLD', value, 1);
+        break;
+      case 'ATOMIC':
+        this.validateBoolean('ATOMIC', value);
+        break;
+      case 'REQUIRE_CLEAN_INDEX':
+        this.validateBoolean('REQUIRE_CLEAN_INDEX', value);
+        break;
+      case 'DEFAULT_IGNORES':
+        this.validateBoolean('DEFAULT_IGNORES', value);
+        break;
+    }
+  }
+
+  private validateInteger(key: string, value: string, min: number): void {
+    const n = Number(value);
+    if (!Number.isInteger(n) || n < min) {
+      throw new Error(
+        `Invalid value for ${key}\n  Expected: an integer >= ${min}\n  Received: ${value}`
+      );
+    }
+  }
+
+  private validateBoolean(key: string, value: string): void {
+    const normalized = value.toLowerCase();
+    if (normalized !== 'true' && normalized !== 'false') {
+      throw new Error(
+        `Invalid value for ${key}\n  Expected: true or false\n  Received: ${value}`
+      );
     }
   }
 

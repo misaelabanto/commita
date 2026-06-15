@@ -8,12 +8,31 @@ export interface FileGroup {
 
 export class FileGrouper {
   private boundaries: ProjectBoundary[];
+  private depth: number;
+  private maxFilesPerGroup: number;
+  splitWarnings: string[] = [];
 
-  constructor(boundaries: ProjectBoundary[] = []) {
+  constructor(
+    boundaries: ProjectBoundary[] = [],
+    opts?: { depth?: number; maxFilesPerGroup?: number },
+  ) {
     // Sort longest path first so the most specific project matches first
     this.boundaries = [...boundaries].sort(
       (a, b) => b.path.length - a.path.length,
     );
+    // Clamp at the single most robust point so an invalid depth (0, negative,
+    // or NaN from an unparsed CLI/env value) can never recreate the giant
+    // "root" bucket this fix eliminates. Depth is at least 1.
+    const depth = opts?.depth;
+    this.depth =
+      typeof depth === 'number' && Number.isFinite(depth) && depth >= 1
+        ? Math.floor(depth)
+        : 2;
+    const maxFiles = opts?.maxFilesPerGroup;
+    this.maxFilesPerGroup =
+      typeof maxFiles === 'number' && Number.isFinite(maxFiles) && maxFiles >= 0
+        ? Math.floor(maxFiles)
+        : 0; // 0 = off
   }
 
   groupByPath(files: FileChange[]): FileGroup[] {
@@ -37,33 +56,29 @@ export class FileGrouper {
   }
 
   private extractScope(filePath: string): string {
-    const parts = filePath.split('/');
+    const parts = filePath.split('/').filter(p => p.length > 0);
 
-    if (parts.length === 1) {
-      return 'root';
+    if (parts.length <= 1) {
+      return 'root'; // genuine repo-root file only
     }
 
     const project = this.findProjectForFile(filePath);
 
     if (project) {
       const relativePath = filePath.slice(project.path.length + 1);
-      const relativeParts = relativePath.split('/');
+      const relativeParts = relativePath.split('/').filter(p => p.length > 0);
 
       if (relativeParts.length <= 1) {
         return project.path;
       }
 
-      const meaningfulParts = this.findMeaningfulPath(relativeParts);
-      return `${project.path}/${meaningfulParts.join('/')}`;
+      const meaningful = this.findMeaningfulPath(relativeParts);
+      return meaningful.length ? `${project.path}/${meaningful.join('/')}` : project.path;
     }
 
-    if (this.boundaries.length > 0) {
-      // In a monorepo, root-level files that don't belong to any project
-      return 'root';
-    }
-
-    const meaningfulParts = this.findMeaningfulPath(parts);
-    return meaningfulParts.join('/');
+    // No boundary match: assign by nearest top `depth` dirs (NOT 'root')
+    const dirSegs = parts.slice(0, Math.min(this.depth, parts.length - 1));
+    return dirSegs.length ? dirSegs.join('/') : 'root';
   }
 
   private findProjectForFile(filePath: string): ProjectBoundary | undefined {
@@ -77,7 +92,7 @@ export class FileGrouper {
     const startIdx = parts.findIndex(p => commonDirs.includes(p));
 
     if (startIdx === -1) {
-      return parts.slice(0, Math.min(2, parts.length - 1));
+      return parts.slice(0, Math.min(this.depth, parts.length - 1));
     }
 
     const relevantParts = parts.slice(startIdx);
@@ -86,10 +101,14 @@ export class FileGrouper {
       return relevantParts;
     }
 
-    return relevantParts.slice(0, 2);
+    // Cap so the filename is never folded into the scope; sibling files under
+    // a common dir (e.g. <project>/src/a.ts, b.ts) must collapse to one group.
+    return relevantParts.slice(0, Math.min(this.depth, relevantParts.length - 1));
   }
 
   optimizeGroups(groups: FileGroup[]): FileGroup[] {
+    this.splitWarnings = [];
+
     const scopeMap = new Map<string, FileChange[]>();
 
     for (const group of groups) {
@@ -104,11 +123,37 @@ export class FileGrouper {
       optimized.push({ scope, files });
     }
 
-    return optimized.sort((a, b) => {
+    const sorted = optimized.sort((a, b) => {
       if (a.scope === 'root') return 1;
       if (b.scope === 'root') return -1;
       return a.scope.localeCompare(b.scope);
     });
+
+    return this.splitOversized(sorted);
+  }
+
+  private splitOversized(groups: FileGroup[]): FileGroup[] {
+    if (this.maxFilesPerGroup <= 0) return groups;
+    const out: FileGroup[] = [];
+    for (const g of groups) {
+      if (g.files.length <= this.maxFilesPerGroup) {
+        out.push(g);
+        continue;
+      }
+      const sorted = [...g.files].sort((a, b) => a.path.localeCompare(b.path)); // determinism
+      const chunks: FileChange[][] = [];
+      for (let i = 0; i < sorted.length; i += this.maxFilesPerGroup) {
+        chunks.push(sorted.slice(i, i + this.maxFilesPerGroup));
+      }
+      const k = chunks.length;
+      this.splitWarnings.push(
+        `Group ${g.scope} has ${g.files.length} files; split into ${k} commits (--max-files-per-group=${this.maxFilesPerGroup}).`,
+      );
+      chunks.forEach((files, idx) =>
+        out.push({ scope: `${g.scope} (part ${idx + 1}/${k})`, files }),
+      );
+    }
+    return out;
   }
 
   private normalizeScope(scope: string): string {
@@ -116,19 +161,19 @@ export class FileGrouper {
 
     if (project) {
       const subScope = scope.slice(project.path.length + 1);
-      const parts = subScope.split('/');
+      const parts = subScope.split('/').filter(p => p.length > 0);
 
-      if (parts.length > 2 && parts[0] === 'src') {
-        return `${project.path}/${parts.slice(0, 2).join('/')}`;
+      if (parts.length > this.depth && parts[0] === 'src') {
+        return `${project.path}/${parts.slice(0, this.depth).join('/')}`;
       }
 
       return scope;
     }
 
-    const parts = scope.split('/');
+    const parts = scope.split('/').filter(p => p.length > 0);
 
-    if (parts.length > 2 && parts[0] === 'src') {
-      return parts.slice(0, 2).join('/');
+    if (parts.length > this.depth && parts[0] === 'src') {
+      return parts.slice(0, this.depth).join('/');
     }
 
     return scope;

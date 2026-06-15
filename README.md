@@ -146,8 +146,16 @@ export GEMINI_API_KEY=your-gemini-api-key
 - **COMMIT_STYLE**: Either `conventional` or `emoji`
 - **OPENAI_API_KEY**: Your OpenAI API key (required when `PROVIDER=openai`)
 - **GEMINI_API_KEY**: Your Gemini API key (required when `PROVIDER=gemini`)
+- **GROUP_DEPTH**: Grouping depth for files outside a detected project (default: `2`, minimum `1`)
+- **MAX_FILES_PER_GROUP**: Auto-split groups larger than this into multiple commits (default: `0` = off)
+- **CONFIRM_THRESHOLD**: File count at/above which a run requires confirmation (default: `100`)
+- **DEFAULT_IGNORES**: Whether to apply the built-in build/VCS-noise grouping ignore set (default: `true`)
+- **ATOMIC**: Roll back all commits from a run if any group fails (default: `false`)
+- **REQUIRE_CLEAN_INDEX**: Abort a `--all` run when the index already has staged changes (default: `false`)
 
 **Note**: You can also use `GOOGLE_GENERATIVE_AI_API_KEY` environment variable instead of `GEMINI_API_KEY`.
+
+**Note**: Every config key above can also be set via a `COMMITA_`-prefixed environment variable (e.g. `COMMITA_GROUP_DEPTH=3`).
 
 ### Prompt Styles
 
@@ -289,9 +297,25 @@ commita --config .commita.local
 | `--dry-run` | `-d` | Show commit groups and messages without committing |
 | `--status` | `-s` | Show a summary of staged and unstaged changes |
 | `--config <path>` | `-c` | Path to custom config file |
+| `--depth <n>` | | Grouping depth for files outside a detected project (default: 2) |
+| `--max-files-per-group <n>` | | Auto-split groups larger than `n` into multiple commits (`0` = off) |
+| `--atomic` | | Roll back all commits from this run if any group fails |
+| `--require-clean-index` | | Abort if the index has pre-staged changes when using `--all` |
+| `--yes` | `-y` | Skip confirmation prompts for large or pushed runs |
+| `--confirm-threshold <n>` | | File count at/above which confirmation is required (default: 100) |
+| `--no-default-ignores` | | Disable the built-in build/VCS-noise grouping ignore set |
 | `--no-push` | | Skip pushing after commit |
 | `--no-verify` | | Bypass git pre-commit and commit-msg hooks |
 | `--version` | `-v` | Show version number |
+
+### Grouping, Safety, and Recovery
+
+- **Grouping depth** (`--depth`, config `GROUP_DEPTH`): files that do not belong to a detected project (no `package.json`, `Cargo.toml`, etc. above them) are grouped by their top `n` directories instead of being lumped into a single `root` commit. Only true repo-root files land in `root`.
+- **Auto-split** (`--max-files-per-group`, config `MAX_FILES_PER_GROUP`): caps how many files a single commit can contain, splitting oversized groups into `scope (part k/N)` commits with a warning.
+- **Default noise filtering** (config `DEFAULT_IGNORES`, on by default): build/VCS artifacts (`**/build/`, `**/.gradle/`, `dist/`, `node_modules/`, `**/target/`, `**/.next/`, `coverage/`, ...) are excluded from grouping. They merge with any `--ignore` patterns. Pass `--no-default-ignores` to include them.
+- **Confirmation gate** (`--confirm-threshold`, config `CONFIRM_THRESHOLD`): when a run touches at least this many files, commita prints the plan and asks for confirmation. Pass `--yes`/`-y` to skip the prompt. In a non-interactive shell an over-threshold run aborts unless `--yes` is given.
+- **Recovery** (`--atomic`, config `ATOMIC`): if a group fails partway through a run, commita prints the created commit SHAs and a `git reset --soft <pre-run-sha>` undo hint. With `--atomic` it rolls those commits back automatically and never pushes a partial run.
+- **Clean-index enforcement** (`--require-clean-index`, config `REQUIRE_CLEAN_INDEX`): abort a `--all` run if anything is already staged, instead of folding it into the grouping.
 
 ## How It Works
 
@@ -335,9 +359,9 @@ refactor(profile): restructure profile service
 
 **Behavior**:
 - If you have **staged changes** and run without `--all`: processes staged files, grouped by folders, and creates multiple commits
-- If you have **staged changes** and run with `--all`: ignores staged files and processes all unstaged changes grouped by folders
+- If you have **staged changes** and run with `--all`: the pre-staged files are unstaged and regrouped together with the rest of your changes, so each file is committed in its correct group (pass `--require-clean-index` to abort instead)
 - If you have **no staged changes** and run without `--all`: exits with error
-- **Note**: Commita temporarily unstages the files you selected so it can create one commit per folder, then restages and commits each group for you.
+- **Note**: Commita temporarily unstages the files you selected so it can create one commit per folder, then commits each group with an explicit pathspec so a commit only ever contains its own group's files.
 - Use this to control exactly which files get committed together
 
 ## Advanced Usage Examples

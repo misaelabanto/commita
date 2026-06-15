@@ -1,5 +1,11 @@
 import { minimatch } from 'minimatch';
 
+export const DEFAULT_GROUPING_IGNORES = [
+  '**/build/**', '**/.gradle/**', 'dist/**', '**/dist/**',
+  'node_modules/**', '**/node_modules/**', '**/target/**',
+  '**/.next/**', 'coverage/**', '**/__pycache__/**', 'out/**',
+];
+
 export class PatternMatcher {
   private patterns: string[];
 
@@ -24,6 +30,12 @@ export class PatternMatcher {
     }
 
     return files.filter(file => !this.shouldIgnore(file.path));
+  }
+
+  ignorableRatio(files: { path: string }[]): number {
+    if (files.length === 0) return 0;
+    const n = files.filter(f => this.shouldIgnore(f.path)).length;
+    return n / files.length;
   }
 
   static parsePatterns(patternsString: string): string[] {
