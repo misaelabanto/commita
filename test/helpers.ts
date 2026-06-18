@@ -58,6 +58,9 @@ export class FakeAIService extends AIService {
   public calls = 0;
   private throwOnCall: number;
 
+  /** Context passed to each generateCommitMessage call, in order. */
+  public contexts: Array<string | undefined> = [];
+
   constructor(throwOnCall = 0) {
     // Provide a config with an API key so the real constructor's validation passes.
     super(makeConfig({ openaiApiKey: 'sk-test-fake-key-123456' }));
@@ -68,8 +71,10 @@ export class FakeAIService extends AIService {
     _diff: string,
     _files: string[],
     scope: string,
+    context?: string,
   ): Promise<string> {
     this.calls += 1;
+    this.contexts.push(context);
     if (this.throwOnCall > 0 && this.calls === this.throwOnCall) {
       throw new Error('fake AI failure');
     }
