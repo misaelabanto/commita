@@ -35,6 +35,8 @@ export async function runCLI() {
     .option('--max-files-per-group <n>', 'Auto-split groups larger than n (0 = off)', parseIntOption(0))
     .option('--atomic', 'Roll back all commits from this run if any group fails', false)
     .option('--require-clean-index', 'Abort if the index has pre-staged changes when using --all', false)
+    .option('-x, --context <text>', 'Free-text intent passed to the LLM alongside the diff for every group')
+    .option('--context-file <path>', 'Read --context from a file (mutually exclusive with --context)')
     .option('-y, --yes', 'Skip confirmation prompts for large or pushed runs', false)
     .option('--confirm-threshold <n>', 'File count at/above which confirmation is required', parseIntOption(1))
     .option('--no-default-ignores', 'Disable the built-in build/VCS-noise grouping ignore set')

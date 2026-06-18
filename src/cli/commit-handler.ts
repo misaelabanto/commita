@@ -1,5 +1,6 @@
 import { AIService } from '@/ai/ai.service.ts';
 import { decideConfirm } from '@/cli/confirm.ts';
+import { resolveContext } from '@/cli/context.ts';
 import type { CommitaConfig } from '@/config/config.types.ts';
 import { FileGrouper } from '@/git/file-grouper.ts';
 import type { FileGroup } from '@/git/file-grouper.ts';
@@ -34,6 +35,8 @@ export interface CommitOptions {
   yes: boolean;
   confirmThreshold?: number;
   defaultIgnores: boolean;
+  context?: string;
+  contextFile?: string;
 }
 
 export class CommitHandler {
@@ -49,6 +52,7 @@ export class CommitHandler {
   private confirmThreshold: number = 100;
   private preRunSha: string | null = null;
   private committedShas: string[] = [];
+  private context?: string;
 
   constructor(config: CommitaConfig, aiService?: AIService) {
     this.config = config;
@@ -63,6 +67,18 @@ export class CommitHandler {
     this.noVerify = !options.verify;
     this.dryRun = options.dryRun;
     this.committedShas = [];
+
+    // Resolve context before any git work so a bad --context/--context-file
+    // aborts the run before any commit is created.
+    try {
+      this.context = resolveContext({ context: options.context, contextFile: options.contextFile });
+    } catch (error) {
+      console.error(chalk.red(`\n❌ ${error instanceof Error ? error.message : 'Invalid context'}\n`));
+      throw new CommitAbortError(1);
+    }
+    if (this.context) {
+      console.log(chalk.gray(`Context: ${this.context.replace(/\n/g, '\n         ')}\n`));
+    }
 
     // CLI > config precedence
     const groupDepth = options.depth ?? this.config.groupDepth ?? 2;
@@ -269,7 +285,7 @@ export class CommitHandler {
       }
 
       console.log(chalk.cyan('  Generating commit message...'));
-      const message = await this.aiService.generateCommitMessage(diff, files, group.scope);
+      const message = await this.aiService.generateCommitMessage(diff, files, group.scope, this.context);
 
       console.log(chalk.gray('  Commit message:'));
       console.log(chalk.white(`  ${message.replace(/\n/g, '\n  ')}`));
