@@ -294,6 +294,21 @@ describe('CommitHandler integration', () => {
     expect(ai.contexts[0]).toBeUndefined();
   });
 
+  test('--all excludes the --context-file from grouping so per-run notes are not committed', async () => {
+    writeFile(repo.dir, 'a/x.ts', 'export const x = 1;\n');
+    writeFile(repo.dir, '.commit-notes.md', 'Count query moved into txn, not removed\n');
+
+    const ai = new FakeAIService();
+    const handler = makeHandler(repo, undefined, ai);
+    await handler.execute(baseOptions({ contextFile: '.commit-notes.md' }));
+
+    const log = await repo.git.raw(['log', '--name-only', '--pretty=format:']);
+    expect(log).toContain('a/x.ts');
+    expect(log).not.toContain('.commit-notes.md');
+    // the note still reached the AI as context
+    expect(ai.contexts.some(c => c === 'Count query moved into txn, not removed')).toBe(true);
+  });
+
   test('both --context and --context-file abort the run before committing', async () => {
     writeFile(repo.dir, 'a/x.ts', 'export const x = 1;\n');
 

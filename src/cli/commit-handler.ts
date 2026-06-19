@@ -1,6 +1,6 @@
 import { AIService } from '@/ai/ai.service.ts';
 import { decideConfirm } from '@/cli/confirm.ts';
-import { resolveContext } from '@/cli/context.ts';
+import { resolveContext, resolveContextFilePath } from '@/cli/context.ts';
 import type { CommitaConfig } from '@/config/config.types.ts';
 import { FileGrouper } from '@/git/file-grouper.ts';
 import type { FileGroup } from '@/git/file-grouper.ts';
@@ -9,6 +9,7 @@ import { GitService } from '@/git/git.service.ts';
 import { ProjectDetector } from '@/git/project-detector.ts';
 import { DEFAULT_GROUPING_IGNORES, PatternMatcher } from '@/utils/pattern-matcher.ts';
 import chalk from 'chalk';
+import { relative } from 'path';
 import { createInterface } from 'readline';
 
 const MOSTLY_IGNORABLE_RATIO = 0.7;
@@ -53,6 +54,9 @@ export class CommitHandler {
   private preRunSha: string | null = null;
   private committedShas: string[] = [];
   private context?: string;
+  // Absolute path of a resolved --context-file, excluded from --all grouping so
+  // the per-run note never lands in a commit of its own.
+  private contextFilePath?: string;
 
   constructor(config: CommitaConfig, aiService?: AIService) {
     this.config = config;
@@ -67,6 +71,7 @@ export class CommitHandler {
     this.noVerify = !options.verify;
     this.dryRun = options.dryRun;
     this.committedShas = [];
+    this.contextFilePath = options.contextFile != null ? resolveContextFilePath(options.contextFile) : undefined;
 
     // Resolve context before any git work so a bad --context/--context-file
     // aborts the run before any commit is created.
@@ -307,7 +312,7 @@ export class CommitHandler {
   }
 
   private async processAllChanges(patternMatcher: PatternMatcher): Promise<void> {
-    const unstagedChanges = await this.gitService.getUnstagedChanges();
+    const unstagedChanges = this.excludeContextFile(await this.gitService.getUnstagedChanges());
 
     if (unstagedChanges.length === 0) {
       console.log(chalk.yellow('No unstaged changes found.'));
@@ -333,6 +338,22 @@ export class CommitHandler {
     }
 
     await this._processChangesInGroups(filteredChanges, false);
+  }
+
+  // A --context-file is per-run intent, not a code change. When it lives inside
+  // the repo, --all would otherwise discover it as an untracked/modified file
+  // and commit the note. Drop it from the change set so that never happens.
+  private excludeContextFile(changes: FileChange[]): FileChange[] {
+    if (!this.contextFilePath) return changes;
+
+    const rel = relative(this.gitService.getRootDir(), this.contextFilePath);
+    const filtered = changes.filter(change => change.path !== rel);
+
+    if (filtered.length < changes.length) {
+      console.log(chalk.gray(`  (excluded context file '${rel}' from grouping)`));
+    }
+
+    return filtered;
   }
 
   private async pushChanges(): Promise<void> {

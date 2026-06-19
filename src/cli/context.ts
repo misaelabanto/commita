@@ -39,8 +39,17 @@ export function resolveContext(input: ContextInput): string | undefined {
   return trimmed;
 }
 
+/**
+ * Resolve a --context-file argument to an absolute path, matching how
+ * readContextFile() locates it. Callers use this to exclude the note file from
+ * the changes being committed (it is per-run intent, not a code change).
+ */
+export function resolveContextFilePath(contextFile: string, cwd?: string): string {
+  return isAbsolute(contextFile) ? contextFile : resolve(cwd ?? process.cwd(), contextFile);
+}
+
 function readContextFile(contextFile: string, cwd?: string): string {
-  const path = isAbsolute(contextFile) ? contextFile : resolve(cwd ?? process.cwd(), contextFile);
+  const path = resolveContextFilePath(contextFile, cwd);
   try {
     return readFileSync(path, 'utf-8');
   } catch {
