@@ -1,3 +1,23 @@
+const CONTEXT_BLOCK = `<context>
+The author provided the following intent for this change. Treat it as authoritative where it conflicts with your reading of the diff. Only describe changes that are present in the diff below; do not mention work from this context that does not appear in these files.
+
+{context}
+</context>`;
+
+/**
+ * Prepend an author-provided context block above a base prompt. The block is
+ * only added when context has meaningful content; empty or whitespace-only
+ * context returns the prompt unchanged.
+ */
+export function applyContext(prompt: string, context?: string): string {
+  const trimmed = context?.trim();
+  if (!trimmed) {
+    return prompt;
+  }
+
+  return `${CONTEXT_BLOCK.replace('{context}', trimmed)}\n\n${prompt}`;
+}
+
 export const PROMPT_TEMPLATES = {
   default: `You are a helpful assistant that generates git commit messages.
 

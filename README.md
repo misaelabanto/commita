@@ -11,6 +11,7 @@ AI-powered git auto-commit tool that intelligently groups your changes and gener
 - **Multiple Commit Styles**: Support for conventional commits and emoji commits
 - **Bulk Operations**: Process all changes at once with the `--all` flag
 - **Pattern Filtering**: Exclude files using glob patterns with `--ignore`
+- **Intent Context**: Steer messages with a free-text hint via `--context` (or `--context-file`) so they reflect what you meant, not just what the diff looks like
 - **Auto-Push**: Automatically pushes commits to remote (can be disabled)
 - **Dry Run**: Preview commit groups and AI-generated messages without committing using `--dry-run`
 - **Status Summary**: Inspect staged/unstaged changes grouped by scope with `--status`
@@ -288,6 +289,32 @@ Use a different config file:
 commita --config .commita.local
 ```
 
+### Provide Context
+
+Commita generates messages from the diff alone, which can produce confidently wrong bullets (e.g. reading a moved line as a deletion). Pass `--context` / `-x` to describe your intent. The text is included in the prompt for **every** group and is treated as authoritative when it conflicts with what the diff appears to show:
+
+```bash
+commita -a --context "Count query moved into the SET LOCAL transaction, not removed"
+```
+
+For longer notes, read the context from a file with `--context-file` (mutually exclusive with `--context`):
+
+```bash
+commita -a --context-file .commit-notes.md
+```
+
+Pair it with `--dry-run` to preview how the context changes the generated messages before anything is committed:
+
+```bash
+commita -a -x "Implements trigram search" --dry-run
+```
+
+Notes:
+
+- Context is per-run only. There is intentionally no `.commita` key or env var, so a stale note can't silently poison future runs.
+- Context is capped at 2000 characters; longer input is rejected with an error.
+- Commita only describes changes actually present in each group's diff, so a shared context won't bleed unrelated bullets into groups whose files don't include the described work.
+
 ### All CLI Options
 
 | Flag | Short | Description |
@@ -297,6 +324,8 @@ commita --config .commita.local
 | `--dry-run` | `-d` | Show commit groups and messages without committing |
 | `--status` | `-s` | Show a summary of staged and unstaged changes |
 | `--config <path>` | `-c` | Path to custom config file |
+| `--context <text>` | `-x` | Free-text intent passed to the LLM alongside the diff for every group |
+| `--context-file <path>` | | Read `--context` from a file (mutually exclusive with `--context`) |
 | `--depth <n>` | | Grouping depth for files outside a detected project (default: 2) |
 | `--max-files-per-group <n>` | | Auto-split groups larger than `n` into multiple commits (`0` = off) |
 | `--atomic` | | Roll back all commits from this run if any group fails |

@@ -1,7 +1,7 @@
 import { CommitTypeAnalyzer } from '@/ai/commit-type-analyzer.ts';
 import { EmojiMapper } from '@/ai/emoji-mapper.ts';
 import type { CommitaConfig } from '@/config/config.types.ts';
-import { PROMPT_TEMPLATES } from '@/config/prompt-templates.ts';
+import { applyContext, PROMPT_TEMPLATES } from '@/config/prompt-templates.ts';
 import { openai, createOpenAI } from '@ai-sdk/openai';
 import { google, createGoogleGenerativeAI } from '@ai-sdk/google';
 import { generateText } from 'ai';
@@ -29,8 +29,8 @@ export class AIService {
     }
   }
 
-  async generateCommitMessage(diff: string, files: string[], scope: string): Promise<string> {
-    const prompt = this.buildPrompt(diff);
+  async generateCommitMessage(diff: string, files: string[], scope: string, context?: string): Promise<string> {
+    const prompt = this.buildPrompt(diff, context);
 
     try {
       const provider = this.getProvider();
@@ -88,7 +88,7 @@ export class AIService {
     return openai;
   }
 
-  private buildPrompt(diff: string): string {
+  private buildPrompt(diff: string, context?: string): string {
     let template: string;
 
     if (this.config.promptStyle === 'custom') {
@@ -97,7 +97,8 @@ export class AIService {
       template = PROMPT_TEMPLATES[this.config.promptStyle];
     }
 
-    return template.replace('{diff}', this.truncateDiff(diff));
+    const prompt = template.replace('{diff}', this.truncateDiff(diff));
+    return applyContext(prompt, context);
   }
 
   private truncateDiff(diff: string, maxLength: number = 8000): string {
