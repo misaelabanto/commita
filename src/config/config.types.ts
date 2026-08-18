@@ -1,6 +1,9 @@
 export type CommitStyle = 'conventional' | 'emoji';
 export type PromptStyle = 'default' | 'detailed' | 'minimal' | 'custom';
 export type Provider = 'openai' | 'gemini';
+export type GroupBy = 'folder' | 'semantic';
+
+export const GROUP_BY_MODES: GroupBy[] = ['folder', 'semantic'];
 
 export interface CommitaConfig {
   provider: Provider;
@@ -11,6 +14,7 @@ export interface CommitaConfig {
   commitStyle: CommitStyle;
   openaiApiKey?: string;
   geminiApiKey?: string;
+  groupBy: GroupBy;
   groupDepth: number;
   maxFilesPerGroup: number;
   atomic: boolean;
@@ -24,6 +28,7 @@ export const DEFAULT_CONFIG: CommitaConfig = {
   model: 'gpt-4o-mini',
   promptStyle: 'default',
   commitStyle: 'conventional',
+  groupBy: 'folder',
   groupDepth: 2,
   maxFilesPerGroup: 0,
   atomic: false,
