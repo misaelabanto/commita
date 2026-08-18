@@ -255,8 +255,7 @@ export class CommitHandler {
     if (decision === 'proceed') return;
 
     if (decision === 'abort') {
-      console.error(chalk.red(`Refusing to commit ${total} files without confirmation in a non-interactive shell. Re-run with --yes to proceed.`));
-      throw new CommitAbortError(1);
+      this.abortUnconfirmed(total);
     }
 
     // prompt
@@ -267,11 +266,47 @@ export class CommitHandler {
     }
   }
 
+  private abortUnconfirmed(total: number): never {
+    console.error(chalk.red(`Refusing to commit ${total} files without confirmation in a non-interactive shell. Re-run with --yes to proceed.`));
+    throw new CommitAbortError(1);
+  }
+
+  /**
+   * Abort an over-threshold non-interactive run before any grouping work.
+   *
+   * gateConfirmation runs on the finished plan, but by then semantic grouping
+   * has already sent the combined diff to the AI provider. Grouping never adds
+   * or drops files, so the total file count (and therefore the abort decision
+   * for a non-TTY run) is already known here; deciding early keeps a run that is
+   * certain to abort from being billed and from shipping the diff off the
+   * machine. maxGroup is passed as 0 because any group large enough to trip the
+   * threshold implies the total already has, so this can never abort a run that
+   * gateConfirmation would have let through.
+   */
+  private preflightConfirmation(total: number): void {
+    const decision = decideConfirm({
+      total,
+      maxGroup: 0,
+      threshold: this.confirmThreshold,
+      yes: this.yes,
+      dryRun: this.dryRun,
+      isTTY: Boolean(process.stdin.isTTY),
+    });
+
+    if (decision === 'abort') {
+      this.abortUnconfirmed(total);
+    }
+  }
+
   private async _processChangesInGroups(changes: FileChange[], isStaged: boolean): Promise<void> {
     if (changes.length === 0) {
       console.log(chalk.yellow(`No ${isStaged ? 'staged' : 'unstaged'} changes found to group. Skipping...`));
       return;
     }
+
+    // Before unstaging anything, so a run that is certain to abort leaves the
+    // index exactly as the user left it.
+    this.preflightConfirmation(changes.length);
 
     if (isStaged && !this.dryRun) {
       const allFiles = changes.map(f => f.path);

@@ -482,4 +482,53 @@ describe('CommitHandler integration', () => {
     expect(ai.groupCalls).toBe(1);
     expect(await commitCount(repo)).toBe(before);
   });
+
+  test('semantic grouping never reaches the model on a doomed non-TTY run', async () => {
+    // The whole point of the preflight: an over-threshold non-interactive run
+    // without --yes aborts no matter how the files group, so the diff must not
+    // be sent to (and billed by) the provider first.
+    writeFile(repo.dir, 'a/x.ts', 'a\n');
+    writeFile(repo.dir, 'b/y.ts', 'b\n');
+    await repo.git.add(['a/x.ts', 'b/y.ts']);
+
+    const origTTY = process.stdin.isTTY;
+    Object.defineProperty(process.stdin, 'isTTY', { value: false, configurable: true });
+
+    try {
+      const ai = new FakeAIService();
+      const handler = makeHandler(repo, { confirmThreshold: 1 }, ai);
+      const before = await commitCount(repo);
+
+      await expect(
+        handler.execute(baseOptions({ all: false, groupBy: 'semantic', yes: false })),
+      ).rejects.toThrow(CommitAbortError);
+
+      expect(ai.groupCalls).toBe(0);
+      expect(ai.calls).toBe(0);
+      expect(await commitCount(repo)).toBe(before);
+      // the index is untouched, so the user's staging survives the abort
+      expect(await repo.gitService.isIndexClean()).toBe(false);
+    } finally {
+      Object.defineProperty(process.stdin, 'isTTY', { value: origTTY, configurable: true });
+    }
+  });
+
+  test('preflight never aborts a run the confirmation gate would allow', async () => {
+    // Under the threshold, a non-TTY run proceeds exactly as before.
+    writeFile(repo.dir, 'a/x.ts', 'a\n');
+    writeFile(repo.dir, 'b/y.ts', 'b\n');
+
+    const origTTY = process.stdin.isTTY;
+    Object.defineProperty(process.stdin, 'isTTY', { value: false, configurable: true });
+
+    try {
+      const preRunSha = (await repo.gitService.getHeadSha()) ?? '';
+      const handler = makeHandler(repo, { confirmThreshold: 100 });
+      await handler.execute(baseOptions({ yes: false }));
+
+      expect((await commitFileSets(repo, preRunSha)).length).toBe(2);
+    } finally {
+      Object.defineProperty(process.stdin, 'isTTY', { value: origTTY, configurable: true });
+    }
+  });
 });
