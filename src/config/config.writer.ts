@@ -1,4 +1,5 @@
 import type { CommitStyle, PromptStyle, Provider } from '@/config/config.types.ts';
+import { GROUP_BY_MODES } from '@/config/config.types.ts';
 import { existsSync } from 'fs';
 import { readFile, writeFile, chmod } from 'fs/promises';
 
@@ -18,6 +19,7 @@ const VALID_KEYS = [
   'PROMPT_STYLE',
   'PROMPT_TEMPLATE',
   'CUSTOM_PROMPT',
+  'GROUP_BY',
   'GROUP_DEPTH',
   'MAX_FILES_PER_GROUP',
   'CONFIRM_THRESHOLD',
@@ -84,6 +86,13 @@ export class ConfigWriter {
         if (value.length < 10) {
           throw new Error(
             `API key for GEMINI_API_KEY appears to be invalid (too short: ${value.length} characters)`
+          );
+        }
+        break;
+      case 'GROUP_BY':
+        if (!GROUP_BY_MODES.includes(value as (typeof GROUP_BY_MODES)[number])) {
+          throw new Error(
+            `Invalid value for GROUP_BY\n  Expected: ${GROUP_BY_MODES.join(' or ')}\n  Received: ${value}`
           );
         }
         break;

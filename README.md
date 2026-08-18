@@ -7,6 +7,8 @@ AI-powered git auto-commit tool that intelligently groups your changes and gener
 - **AI-Generated Commit Messages**: Uses OpenAI or Google Gemini to analyze diffs and create descriptive commit messages
 - **Multiple AI Providers**: Support for both OpenAI and Google Gemini via the Vercel AI SDK
 - **Intelligent File Grouping**: Automatically groups files by their directory structure for organized commits
+- **Semantic Grouping**: Let the AI decide which files belong in the same commit with `--group-by semantic`, so a change that spans directories stays one commit
+- **Single-Commit Escape Hatch**: Force the whole change set into one commit with `--single`
 - **Configurable**: Customize prompts, models, and commit styles
 - **Multiple Commit Styles**: Support for conventional commits and emoji commits
 - **Bulk Operations**: Process all changes at once with the `--all` flag
@@ -147,6 +149,7 @@ export GEMINI_API_KEY=your-gemini-api-key
 - **COMMIT_STYLE**: Either `conventional` or `emoji`
 - **OPENAI_API_KEY**: Your OpenAI API key (required when `PROVIDER=openai`)
 - **GEMINI_API_KEY**: Your Gemini API key (required when `PROVIDER=gemini`)
+- **GROUP_BY**: How files are split into commits - `folder` or `semantic` (default: `folder`)
 - **GROUP_DEPTH**: Grouping depth for files outside a detected project (default: `2`, minimum `1`)
 - **MAX_FILES_PER_GROUP**: Auto-split groups larger than this into multiple commits (default: `0` = off)
 - **CONFIRM_THRESHOLD**: File count at/above which a run requires confirmation (default: `100`)
@@ -326,6 +329,8 @@ Notes:
 | `--config <path>` | `-c` | Path to custom config file |
 | `--context <text>` | `-x` | Free-text intent passed to the LLM alongside the diff for every group |
 | `--context-file <path>` | | Read `--context` from a file (mutually exclusive with `--context`) |
+| `--group-by <mode>` | | How files are split into commits: `folder` (default) or `semantic` |
+| `--single` | | Commit every change as one commit, skipping grouping entirely |
 | `--depth <n>` | | Grouping depth for files outside a detected project (default: 2) |
 | `--max-files-per-group <n>` | | Auto-split groups larger than `n` into multiple commits (`0` = off) |
 | `--atomic` | | Roll back all commits from this run if any group fails |
@@ -340,6 +345,8 @@ Notes:
 ### Grouping, Safety, and Recovery
 
 - **Grouping depth** (`--depth`, config `GROUP_DEPTH`): files that do not belong to a detected project (no `package.json`, `Cargo.toml`, etc. above them) are grouped by their top `n` directories instead of being lumped into a single `root` commit. Only true repo-root files land in `root`.
+- **Semantic grouping** (`--group-by semantic`, config `GROUP_BY`): instead of splitting by directory, commita sends the changed file list plus the combined diff (and your `--context`, when given) to the model and asks it which files form one logically complete change. Files that only make sense together end up in the same commit even when they live in different directories, which folder grouping cannot express at any `--depth`. Folder grouping stays the default because it is free and deterministic; semantic grouping costs one extra AI call per run and its output varies between runs. If the model errors out, returns nothing usable, or names a file that is not in the change set, commita prints a warning and falls back to folder grouping. Files the model forgets are grouped by folder and appended, so nothing is ever dropped. `--status` always shows folder groups, since it never calls the AI.
+- **Single commit** (`--single`): commits every change in one commit, skipping grouping and `--max-files-per-group` entirely. Use it when you already know the change set is one unit of work. It takes precedence over `--group-by`.
 - **Auto-split** (`--max-files-per-group`, config `MAX_FILES_PER_GROUP`): caps how many files a single commit can contain, splitting oversized groups into `scope (part k/N)` commits with a warning.
 - **Default noise filtering** (config `DEFAULT_IGNORES`, on by default): build/VCS artifacts (`**/build/`, `**/.gradle/`, `dist/`, `node_modules/`, `**/target/`, `**/.next/`, `coverage/`, ...) are excluded from grouping. They merge with any `--ignore` patterns. Pass `--no-default-ignores` to include them.
 - **Confirmation gate** (`--confirm-threshold`, config `CONFIRM_THRESHOLD`): when a run touches at least this many files, commita prints the plan and asks for confirmation. Pass `--yes`/`-y` to skip the prompt. In a non-interactive shell an over-threshold run aborts unless `--yes` is given.

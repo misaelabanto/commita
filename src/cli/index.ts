@@ -3,6 +3,8 @@ import { CommitAbortError, CommitHandler } from '@/cli/commit-handler.ts';
 import type { SetOptions } from '@/cli/set-handler.ts';
 import { SetHandler } from '@/cli/set-handler.ts';
 import { ConfigLoader } from '@/config/config.loader.ts';
+import type { GroupBy } from '@/config/config.types.ts';
+import { GROUP_BY_MODES } from '@/config/config.types.ts';
 import chalk from 'chalk';
 import { Command, InvalidArgumentError } from 'commander';
 import packageJson from '../../package.json' with { type: 'json' };
@@ -15,6 +17,17 @@ function parseIntOption(min: number) {
     }
     return parsed;
   };
+}
+
+function parseGroupByOption(value: string): GroupBy {
+  const normalized = value.trim().toLowerCase();
+  const mode = GROUP_BY_MODES.find(candidate => candidate === normalized);
+
+  if (!mode) {
+    throw new InvalidArgumentError(`must be one of: ${GROUP_BY_MODES.join(', ')}`);
+  }
+
+  return mode;
 }
 
 export async function runCLI() {
@@ -31,6 +44,8 @@ export async function runCLI() {
     .option('-c, --config <path>', 'Path to custom config file')
     .option('-d, --dry-run', 'Show commit groups and messages without committing', false)
     .option('-s, --status', 'Show a summary of staged and unstaged changes', false)
+    .option('--group-by <mode>', `How files are split into commits: ${GROUP_BY_MODES.join(' or ')}`, parseGroupByOption)
+    .option('--single', 'Commit every change as one commit, skipping grouping entirely', false)
     .option('--depth <n>', 'Grouping depth for files outside a detected project', parseIntOption(1))
     .option('--max-files-per-group <n>', 'Auto-split groups larger than n (0 = off)', parseIntOption(0))
     .option('--atomic', 'Roll back all commits from this run if any group fails', false)

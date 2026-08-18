@@ -55,6 +55,53 @@ export class FileGrouper {
     }));
   }
 
+  /**
+   * Put every file in one group, for --single. The scope is the deepest
+   * directory all the files share, so a change confined to one area still reads
+   * as that area rather than as 'root'.
+   */
+  groupAsSingle(files: FileChange[]): FileGroup[] {
+    this.splitWarnings = [];
+
+    if (files.length === 0) {
+      return [];
+    }
+
+    return [{ scope: this.commonDirectory(files.map(file => file.path)), files }];
+  }
+
+  /**
+   * Apply --max-files-per-group to groups that were built elsewhere (semantic
+   * grouping), without running them through folder scope normalization.
+   */
+  splitGroups(groups: FileGroup[]): FileGroup[] {
+    // Deliberately does not reset splitWarnings: semantic grouping may already
+    // have collected warnings while folder-grouping leftover files.
+    return this.splitOversized(groups);
+  }
+
+  private commonDirectory(paths: string[]): string {
+    const segmentLists = paths.map(path => path.split('/').filter(part => part.length > 0).slice(0, -1));
+    const [first, ...rest] = segmentLists;
+
+    if (!first) {
+      return 'root';
+    }
+
+    const shared: string[] = [];
+
+    for (let index = 0; index < first.length; index++) {
+      const segment = first[index];
+      if (rest.every(segments => segments[index] === segment)) {
+        shared.push(segment as string);
+      } else {
+        break;
+      }
+    }
+
+    return shared.length > 0 ? shared.join('/') : 'root';
+  }
+
   private extractScope(filePath: string): string {
     const parts = filePath.split('/').filter(p => p.length > 0);
 

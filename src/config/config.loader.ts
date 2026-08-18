@@ -1,5 +1,5 @@
-import type { CommitaConfig, CommitStyle, PromptStyle, Provider } from '@/config/config.types.ts';
-import { DEFAULT_CONFIG } from '@/config/config.types.ts';
+import type { CommitaConfig, CommitStyle, GroupBy, PromptStyle, Provider } from '@/config/config.types.ts';
+import { DEFAULT_CONFIG, GROUP_BY_MODES } from '@/config/config.types.ts';
 import { existsSync } from 'fs';
 import { readFile } from 'fs/promises';
 import { join } from 'path';
@@ -109,6 +109,11 @@ export class ConfigLoader {
         case 'GEMINI_API_KEY':
           config.geminiApiKey = value;
           break;
+        case 'GROUP_BY': {
+          const mode = parseGroupBy(value);
+          if (mode) config.groupBy = mode;
+          break;
+        }
         case 'GROUP_DEPTH': {
           const n = parseInt(value, 10);
           if (!Number.isNaN(n)) config.groupDepth = n;
@@ -169,6 +174,10 @@ export class ConfigLoader {
     if (process.env.GOOGLE_GENERATIVE_AI_API_KEY && !config.geminiApiKey) {
       config.geminiApiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
     }
+    if (process.env.COMMITA_GROUP_BY) {
+      const mode = parseGroupBy(process.env.COMMITA_GROUP_BY);
+      if (mode) config.groupBy = mode;
+    }
     if (process.env.COMMITA_GROUP_DEPTH) {
       const n = parseInt(process.env.COMMITA_GROUP_DEPTH, 10);
       if (!Number.isNaN(n)) config.groupDepth = n;
@@ -193,4 +202,22 @@ export class ConfigLoader {
 
     return config;
   }
+}
+
+/**
+ * Accept a grouping mode only when it is one of the known modes. An unknown
+ * value is ignored (leaving the folder default in place) rather than cast
+ * blindly, because a bad value here would silently change how files are split
+ * into commits.
+ */
+function parseGroupBy(value: string): GroupBy | undefined {
+  const normalized = value.trim().toLowerCase();
+  const mode = GROUP_BY_MODES.find(candidate => candidate === normalized);
+
+  if (!mode) {
+    console.warn(`Warning: unknown grouping mode '${value}', using '${DEFAULT_CONFIG.groupBy}'.`);
+    return undefined;
+  }
+
+  return mode;
 }

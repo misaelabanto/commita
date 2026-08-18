@@ -21,6 +21,7 @@ function baseOptions(over?: Partial<CommitOptions>): CommitOptions {
     status: false,
     atomic: false,
     requireCleanIndex: false,
+    single: false,
     yes: true, // default skip prompt unless a test overrides
     defaultIgnores: true,
     ...over,
@@ -318,5 +319,216 @@ describe('CommitHandler integration', () => {
       handler.execute(baseOptions({ context: 'inline', contextFile: '/tmp/whatever.md' })),
     ).rejects.toThrow(CommitAbortError);
     expect(await commitCount(repo)).toBe(before);
+  });
+
+  test('--single commits every change as one commit, whatever the folders', async () => {
+    writeFile(repo.dir, 'ios/Podfile', "platform :ios, '15.0'\n");
+    writeFile(repo.dir, 'macos/Podfile', "platform :osx, '10.15'\n");
+    writeFile(repo.dir, 'android/app/build.gradle', 'targetSdk 36\n');
+
+    const preRunSha = (await repo.gitService.getHeadSha()) ?? '';
+    const ai = new FakeAIService();
+    const handler = makeHandler(repo, undefined, ai);
+    await handler.execute(baseOptions({ single: true }));
+
+    const sets = await commitFileSets(repo, preRunSha);
+    expect(sets.length).toBe(1);
+    expect(sets[0]?.sort()).toEqual(['android/app/build.gradle', 'ios/Podfile', 'macos/Podfile']);
+    // one commit means exactly one message generation and no grouping call
+    expect(ai.calls).toBe(1);
+    expect(ai.groupCalls).toBe(0);
+  });
+
+  test('--single wins over --group-by semantic', async () => {
+    writeFile(repo.dir, 'a/x.ts', 'export const x = 1;\n');
+    writeFile(repo.dir, 'b/y.ts', 'export const y = 2;\n');
+
+    const preRunSha = (await repo.gitService.getHeadSha()) ?? '';
+    const ai = new FakeAIService();
+    ai.groupsResponse = [
+      { scope: 'one', files: ['a/x.ts'] },
+      { scope: 'two', files: ['b/y.ts'] },
+    ];
+    const handler = makeHandler(repo, undefined, ai);
+    await handler.execute(baseOptions({ single: true, groupBy: 'semantic' }));
+
+    expect((await commitFileSets(repo, preRunSha)).length).toBe(1);
+    expect(ai.groupCalls).toBe(0);
+  });
+
+  test('--single also ignores --max-files-per-group', async () => {
+    writeFile(repo.dir, 'a/x.ts', 'export const x = 1;\n');
+    writeFile(repo.dir, 'a/z.ts', 'export const z = 3;\n');
+    writeFile(repo.dir, 'b/y.ts', 'export const y = 2;\n');
+
+    const preRunSha = (await repo.gitService.getHeadSha()) ?? '';
+    const handler = makeHandler(repo);
+    await handler.execute(baseOptions({ single: true, maxFilesPerGroup: 1 }));
+
+    expect((await commitFileSets(repo, preRunSha)).length).toBe(1);
+  });
+
+  test('semantic grouping keeps a cross-directory change in one commit', async () => {
+    // The issue-6 shape: one logical change spread over three platform dirs.
+    writeFile(repo.dir, 'ios/Podfile', "platform :ios, '15.0'\n");
+    writeFile(repo.dir, 'ios/Flutter/AppFrameworkInfo.plist', '<string>15.0</string>\n');
+    writeFile(repo.dir, 'macos/Podfile', "platform :osx, '10.15'\n");
+    writeFile(repo.dir, 'docs/notes.md', 'unrelated\n');
+
+    const preRunSha = (await repo.gitService.getHeadSha()) ?? '';
+    const ai = new FakeAIService();
+    ai.groupsResponse = [
+      {
+        scope: 'deployment-targets',
+        files: ['ios/Podfile', 'ios/Flutter/AppFrameworkInfo.plist', 'macos/Podfile'],
+      },
+      { scope: 'docs', files: ['docs/notes.md'] },
+    ];
+    const handler = makeHandler(repo, undefined, ai);
+    await handler.execute(baseOptions({ groupBy: 'semantic' }));
+
+    const sets = await commitFileSets(repo, preRunSha);
+    expect(sets.length).toBe(2);
+    const deployment = sets.find(set => set.includes('ios/Podfile')) ?? [];
+    expect(deployment.sort()).toEqual([
+      'ios/Flutter/AppFrameworkInfo.plist',
+      'ios/Podfile',
+      'macos/Podfile',
+    ]);
+    expect(ai.groupCalls).toBe(1);
+  });
+
+  test('semantic grouping passes the run context to the grouping call', async () => {
+    writeFile(repo.dir, 'a/x.ts', 'export const x = 1;\n');
+
+    const ai = new FakeAIService();
+    ai.groupsResponse = [{ scope: 'app', files: ['a/x.ts'] }];
+    const handler = makeHandler(repo, undefined, ai);
+    await handler.execute(baseOptions({ groupBy: 'semantic', context: 'one policy compliance change' }));
+
+    expect(ai.contexts[0]).toBe('one policy compliance change');
+  });
+
+  test('semantic grouping falls back to folder grouping when the model returns nothing', async () => {
+    writeFile(repo.dir, 'a/x.ts', 'export const x = 1;\n');
+    writeFile(repo.dir, 'b/y.ts', 'export const y = 2;\n');
+
+    const preRunSha = (await repo.gitService.getHeadSha()) ?? '';
+    const ai = new FakeAIService();
+    ai.groupsResponse = null;
+    const handler = makeHandler(repo, undefined, ai);
+    await handler.execute(baseOptions({ groupBy: 'semantic' }));
+
+    const sets = await commitFileSets(repo, preRunSha);
+    expect(sets.length).toBe(2);
+  });
+
+  test('semantic grouping falls back when the proposal names an unknown file', async () => {
+    writeFile(repo.dir, 'a/x.ts', 'export const x = 1;\n');
+    writeFile(repo.dir, 'b/y.ts', 'export const y = 2;\n');
+
+    const preRunSha = (await repo.gitService.getHeadSha()) ?? '';
+    const ai = new FakeAIService();
+    ai.groupsResponse = [{ scope: 'everything', files: ['a/x.ts', 'b/y.ts', 'c/hallucinated.ts'] }];
+    const handler = makeHandler(repo, undefined, ai);
+    await handler.execute(baseOptions({ groupBy: 'semantic' }));
+
+    // folder grouping, not the proposed single group
+    const sets = await commitFileSets(repo, preRunSha);
+    expect(sets.length).toBe(2);
+  });
+
+  test('semantic grouping commits files the model forgot, grouped by folder', async () => {
+    writeFile(repo.dir, 'a/x.ts', 'export const x = 1;\n');
+    writeFile(repo.dir, 'b/y.ts', 'export const y = 2;\n');
+
+    const preRunSha = (await repo.gitService.getHeadSha()) ?? '';
+    const ai = new FakeAIService();
+    ai.groupsResponse = [{ scope: 'app', files: ['a/x.ts'] }];
+    const handler = makeHandler(repo, undefined, ai);
+    await handler.execute(baseOptions({ groupBy: 'semantic' }));
+
+    const committed = (await commitFileSets(repo, preRunSha)).flat().sort();
+    expect(committed).toEqual(['a/x.ts', 'b/y.ts']);
+  });
+
+  test('semantic grouping applies to the staged-only path too', async () => {
+    writeFile(repo.dir, 'a/x.ts', 'export const x = 1;\n');
+    writeFile(repo.dir, 'b/y.ts', 'export const y = 2;\n');
+    await repo.git.add(['a/x.ts', 'b/y.ts']);
+
+    const preRunSha = (await repo.gitService.getHeadSha()) ?? '';
+    const ai = new FakeAIService();
+    ai.groupsResponse = [{ scope: 'one-change', files: ['a/x.ts', 'b/y.ts'] }];
+    const handler = makeHandler(repo, undefined, ai);
+    await handler.execute(baseOptions({ all: false, groupBy: 'semantic' }));
+
+    const sets = await commitFileSets(repo, preRunSha);
+    expect(sets.length).toBe(1);
+    expect(sets[0]?.sort()).toEqual(['a/x.ts', 'b/y.ts']);
+  });
+
+  test('semantic grouping on a staged dry run still reaches the model with a diff', async () => {
+    // Dry runs do not unstage, so the grouping diff must be read from the index.
+    writeFile(repo.dir, 'a/x.ts', 'export const x = 1;\n');
+    await repo.git.add(['a/x.ts']);
+
+    const ai = new FakeAIService();
+    ai.groupsResponse = [{ scope: 'app', files: ['a/x.ts'] }];
+    const handler = makeHandler(repo, undefined, ai);
+    const before = await commitCount(repo);
+    await handler.execute(baseOptions({ all: false, groupBy: 'semantic', dryRun: true }));
+
+    expect(ai.groupCalls).toBe(1);
+    expect(await commitCount(repo)).toBe(before);
+  });
+
+  test('semantic grouping never reaches the model on a doomed non-TTY run', async () => {
+    // The whole point of the preflight: an over-threshold non-interactive run
+    // without --yes aborts no matter how the files group, so the diff must not
+    // be sent to (and billed by) the provider first.
+    writeFile(repo.dir, 'a/x.ts', 'a\n');
+    writeFile(repo.dir, 'b/y.ts', 'b\n');
+    await repo.git.add(['a/x.ts', 'b/y.ts']);
+
+    const origTTY = process.stdin.isTTY;
+    Object.defineProperty(process.stdin, 'isTTY', { value: false, configurable: true });
+
+    try {
+      const ai = new FakeAIService();
+      const handler = makeHandler(repo, { confirmThreshold: 1 }, ai);
+      const before = await commitCount(repo);
+
+      await expect(
+        handler.execute(baseOptions({ all: false, groupBy: 'semantic', yes: false })),
+      ).rejects.toThrow(CommitAbortError);
+
+      expect(ai.groupCalls).toBe(0);
+      expect(ai.calls).toBe(0);
+      expect(await commitCount(repo)).toBe(before);
+      // the index is untouched, so the user's staging survives the abort
+      expect(await repo.gitService.isIndexClean()).toBe(false);
+    } finally {
+      Object.defineProperty(process.stdin, 'isTTY', { value: origTTY, configurable: true });
+    }
+  });
+
+  test('preflight never aborts a run the confirmation gate would allow', async () => {
+    // Under the threshold, a non-TTY run proceeds exactly as before.
+    writeFile(repo.dir, 'a/x.ts', 'a\n');
+    writeFile(repo.dir, 'b/y.ts', 'b\n');
+
+    const origTTY = process.stdin.isTTY;
+    Object.defineProperty(process.stdin, 'isTTY', { value: false, configurable: true });
+
+    try {
+      const preRunSha = (await repo.gitService.getHeadSha()) ?? '';
+      const handler = makeHandler(repo, { confirmThreshold: 100 });
+      await handler.execute(baseOptions({ yes: false }));
+
+      expect((await commitFileSets(repo, preRunSha)).length).toBe(2);
+    } finally {
+      Object.defineProperty(process.stdin, 'isTTY', { value: origTTY, configurable: true });
+    }
   });
 });

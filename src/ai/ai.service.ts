@@ -1,10 +1,19 @@
 import { CommitTypeAnalyzer } from '@/ai/commit-type-analyzer.ts';
 import { EmojiMapper } from '@/ai/emoji-mapper.ts';
 import type { CommitaConfig } from '@/config/config.types.ts';
-import { applyContext, PROMPT_TEMPLATES } from '@/config/prompt-templates.ts';
+import { applyContext, GROUPING_PROMPT, PROMPT_TEMPLATES } from '@/config/prompt-templates.ts';
+import type { ProposedGroup } from '@/ai/semantic-grouper.ts';
+import { parseGroupsResponse } from '@/ai/semantic-grouper.ts';
+import type { FileChange } from '@/git/git.service.ts';
 import { openai, createOpenAI } from '@ai-sdk/openai';
 import { google, createGoogleGenerativeAI } from '@ai-sdk/google';
 import { generateText } from 'ai';
+
+/** Diff budget for the grouping call: larger than a per-group message needs. */
+const GROUPING_DIFF_LIMIT = 24000;
+
+/** Output budget for the grouping call. A long file list must not truncate. */
+const GROUPING_MAX_TOKENS = 4000;
 
 export class AIService {
   private config: CommitaConfig;
@@ -66,6 +75,38 @@ export class AIService {
       }
 
       return fallbackMessage;
+    }
+  }
+
+  /**
+   * Ask the model to split the change set into logically complete groups.
+   *
+   * Returns null on any failure (provider error, unparseable response) so the
+   * caller can fall back to folder grouping instead of aborting the run.
+   */
+  async generateFileGroups(diff: string, files: FileChange[], context?: string): Promise<ProposedGroup[] | null> {
+    const fileList = files.map(file => `${file.status} ${file.path}`).join('\n');
+    const prompt = applyContext(
+      GROUPING_PROMPT.replace('{files}', fileList).replace('{diff}', this.truncateDiff(diff, GROUPING_DIFF_LIMIT)),
+      context,
+    );
+
+    try {
+      const provider = this.getProvider();
+      const model = provider(this.config.model);
+
+      const { text } = await generateText({
+        model,
+        system: 'You group changed files into git commits. You respond with JSON only, no markdown formatting and no commentary.',
+        prompt,
+        temperature: 0.2,
+        maxOutputTokens: GROUPING_MAX_TOKENS,
+      });
+
+      return parseGroupsResponse(text);
+    } catch (error) {
+      console.error('Error generating file groups:', error);
+      return null;
     }
   }
 

@@ -1,7 +1,8 @@
 import { AIService } from '@/ai/ai.service.ts';
 import { decideConfirm } from '@/cli/confirm.ts';
 import { resolveContext, resolveContextFilePath } from '@/cli/context.ts';
-import type { CommitaConfig } from '@/config/config.types.ts';
+import { reconcileGroups } from '@/ai/semantic-grouper.ts';
+import type { CommitaConfig, GroupBy } from '@/config/config.types.ts';
 import { FileGrouper } from '@/git/file-grouper.ts';
 import type { FileGroup } from '@/git/file-grouper.ts';
 import type { FileChange } from '@/git/git.service.ts';
@@ -31,6 +32,8 @@ export interface CommitOptions {
   status: boolean;
   depth?: number;
   maxFilesPerGroup?: number;
+  groupBy?: GroupBy;
+  single: boolean;
   atomic: boolean;
   requireCleanIndex: boolean;
   yes: boolean;
@@ -51,6 +54,8 @@ export class CommitHandler {
   private atomic: boolean = false;
   private yes: boolean = false;
   private confirmThreshold: number = 100;
+  private groupBy: GroupBy = 'folder';
+  private single: boolean = false;
   private preRunSha: string | null = null;
   private committedShas: string[] = [];
   private context?: string;
@@ -87,6 +92,15 @@ export class CommitHandler {
 
     // CLI > config precedence
     const groupDepth = options.depth ?? this.config.groupDepth ?? 2;
+    this.groupBy = options.groupBy ?? this.config.groupBy ?? 'folder';
+    this.single = options.single;
+
+    if (this.single) {
+      console.log(chalk.gray('Single mode: all changes will be committed as one commit.\n'));
+    } else if (this.groupBy === 'semantic') {
+      console.log(chalk.gray('Semantic grouping: the model will propose the commit groups.\n'));
+    }
+
     const maxFilesPerGroup = options.maxFilesPerGroup ?? this.config.maxFilesPerGroup ?? 0;
     this.confirmThreshold = options.confirmThreshold ?? this.config.confirmThreshold ?? 100;
     this.requireCleanIndex = options.requireCleanIndex || this.config.requireCleanIndex;
@@ -241,8 +255,7 @@ export class CommitHandler {
     if (decision === 'proceed') return;
 
     if (decision === 'abort') {
-      console.error(chalk.red(`Refusing to commit ${total} files without confirmation in a non-interactive shell. Re-run with --yes to proceed.`));
-      throw new CommitAbortError(1);
+      this.abortUnconfirmed(total);
     }
 
     // prompt
@@ -253,19 +266,54 @@ export class CommitHandler {
     }
   }
 
+  private abortUnconfirmed(total: number): never {
+    console.error(chalk.red(`Refusing to commit ${total} files without confirmation in a non-interactive shell. Re-run with --yes to proceed.`));
+    throw new CommitAbortError(1);
+  }
+
+  /**
+   * Abort an over-threshold non-interactive run before any grouping work.
+   *
+   * gateConfirmation runs on the finished plan, but by then semantic grouping
+   * has already sent the combined diff to the AI provider. Grouping never adds
+   * or drops files, so the total file count (and therefore the abort decision
+   * for a non-TTY run) is already known here; deciding early keeps a run that is
+   * certain to abort from being billed and from shipping the diff off the
+   * machine. maxGroup is passed as 0 because any group large enough to trip the
+   * threshold implies the total already has, so this can never abort a run that
+   * gateConfirmation would have let through.
+   */
+  private preflightConfirmation(total: number): void {
+    const decision = decideConfirm({
+      total,
+      maxGroup: 0,
+      threshold: this.confirmThreshold,
+      yes: this.yes,
+      dryRun: this.dryRun,
+      isTTY: Boolean(process.stdin.isTTY),
+    });
+
+    if (decision === 'abort') {
+      this.abortUnconfirmed(total);
+    }
+  }
+
   private async _processChangesInGroups(changes: FileChange[], isStaged: boolean): Promise<void> {
     if (changes.length === 0) {
       console.log(chalk.yellow(`No ${isStaged ? 'staged' : 'unstaged'} changes found to group. Skipping...`));
       return;
     }
 
+    // Before unstaging anything, so a run that is certain to abort leaves the
+    // index exactly as the user left it.
+    this.preflightConfirmation(changes.length);
+
     if (isStaged && !this.dryRun) {
       const allFiles = changes.map(f => f.path);
       await this.gitService.unstageFiles(allFiles);
     }
 
-    const groups = this.fileGrouper.groupByPath(changes);
-    const optimizedGroups = this.fileGrouper.optimizeGroups(groups);
+    const optimizedGroups = await this.buildGroups(changes, isStaged);
 
     for (const warning of this.fileGrouper.splitWarnings) {
       console.log(chalk.yellow(warning));
@@ -305,6 +353,64 @@ export class CommitHandler {
         console.log(chalk.green(`  ✓ Committed ${files.length} ${isStaged ? 'staged' : 'unstaged'} file(s)`));
       }
     }
+  }
+
+  /**
+   * Decide how the change set is split into commits. --single wins over
+   * --group-by, and semantic grouping falls back to folder grouping whenever the
+   * model cannot produce a proposal that covers this change set.
+   */
+  private async buildGroups(changes: FileChange[], isStaged: boolean): Promise<FileGroup[]> {
+    if (this.single) {
+      return this.fileGrouper.groupAsSingle(changes);
+    }
+
+    if (this.groupBy === 'semantic') {
+      const semanticGroups = await this.buildSemanticGroups(changes, isStaged);
+      if (semanticGroups) {
+        return semanticGroups;
+      }
+    }
+
+    return this.groupByFolder(changes);
+  }
+
+  private groupByFolder(changes: FileChange[]): FileGroup[] {
+    return this.fileGrouper.optimizeGroups(this.fileGrouper.groupByPath(changes));
+  }
+
+  private async buildSemanticGroups(changes: FileChange[], isStaged: boolean): Promise<FileGroup[] | null> {
+    console.log(chalk.cyan('  Asking the model to group the changes...'));
+
+    // Matches the per-group diff call: real runs unstage first, dry runs do not.
+    const diff = await this.gitService.getDiff(changes.map(change => change.path), isStaged && this.dryRun);
+
+    if (!diff) {
+      return this.fallbackToFolder('no diff was available for the change set');
+    }
+
+    const proposed = await this.aiService.generateFileGroups(diff, changes, this.context);
+
+    if (!proposed) {
+      return this.fallbackToFolder('the model did not return a usable grouping');
+    }
+
+    const reconciled = reconcileGroups(proposed, changes, files => this.groupByFolder(files));
+
+    if (!reconciled.groups) {
+      return this.fallbackToFolder(reconciled.warnings[0] ?? 'the proposed grouping did not match the change set');
+    }
+
+    for (const warning of reconciled.warnings) {
+      console.log(chalk.yellow(`  ${warning}`));
+    }
+
+    return this.fileGrouper.splitGroups(reconciled.groups);
+  }
+
+  private fallbackToFolder(reason: string): null {
+    console.log(chalk.yellow(`  Semantic grouping failed (${reason}); falling back to folder grouping.`));
+    return null;
   }
 
   private async processGroupedStagedChanges(stagedChanges: FileChange[]): Promise<void> {
