@@ -1,5 +1,7 @@
 import { GitService } from '@/git/git.service.ts';
 import { AIService } from '@/ai/ai.service.ts';
+import type { ProposedGroup } from '@/ai/semantic-grouper.ts';
+import type { FileChange } from '@/git/git.service.ts';
 import { DEFAULT_CONFIG, type CommitaConfig } from '@/config/config.types.ts';
 import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from 'fs';
 import { tmpdir } from 'os';
@@ -61,6 +63,15 @@ export class FakeAIService extends AIService {
   /** Context passed to each generateCommitMessage call, in order. */
   public contexts: Array<string | undefined> = [];
 
+  /**
+   * Grouping proposal returned by generateFileGroups. Null (the default) makes
+   * semantic grouping fall back to folder grouping.
+   */
+  public groupsResponse: ProposedGroup[] | null = null;
+
+  /** How many times generateFileGroups was called. */
+  public groupCalls = 0;
+
   constructor(throwOnCall = 0) {
     // Provide a config with an API key so the real constructor's validation passes.
     super(makeConfig({ openaiApiKey: 'sk-test-fake-key-123456' }));
@@ -80,5 +91,15 @@ export class FakeAIService extends AIService {
     }
     const safeScope = scope.replace(/[^a-zA-Z0-9/_-]/g, '');
     return `feat(${safeScope}): test`;
+  }
+
+  override async generateFileGroups(
+    _diff: string,
+    _files: FileChange[],
+    context?: string,
+  ): Promise<ProposedGroup[] | null> {
+    this.groupCalls += 1;
+    this.contexts.push(context);
+    return this.groupsResponse;
   }
 }
