@@ -2,6 +2,14 @@ import type { CommitOptions } from '@/cli/commit-handler.ts';
 import { CommitAbortError, CommitHandler } from '@/cli/commit-handler.ts';
 import type { SetOptions } from '@/cli/set-handler.ts';
 import { SetHandler } from '@/cli/set-handler.ts';
+import {
+  HARNESS_DISPLAY_NAMES,
+  type HarnessName,
+  type SkillInstallOptions,
+  SkillsHandler,
+  SUPPORTED_HARNESSES,
+} from '@/cli/skills-handler.ts';
+import * as prompts from '@clack/prompts';
 import { ConfigLoader } from '@/config/config.loader.ts';
 import type { GroupBy } from '@/config/config.types.ts';
 import { GROUP_BY_MODES } from '@/config/config.types.ts';
@@ -93,6 +101,73 @@ export async function runCLI() {
       }
     });
 
+  program
+    .command('skills')
+    .description('Manage Commita skills for coding agents')
+    .command('install')
+    .description('Install the Commita skill for Codex and compatible agents')
+    .option('-a, --agent <agents...>', 'Harnesses to install to (for example: codex claude-code)')
+    .option('-y, --yes', 'Install to all detected harnesses without prompting')
+    .option('-f, --force', 'Replace an existing Commita skill')
+    .action(async (options: Omit<SkillInstallOptions, 'agents'> & { agent?: string[]; yes?: boolean }) => {
+      try {
+        const handler = new SkillsHandler();
+        const agents = await selectHarnesses(handler, options.agent, options.yes ?? false);
+        if (!agents) {
+          return;
+        }
+        const installation = await handler.install({ agents, force: options.force });
+        const action = installation.replacedExistingSkill ? 'updated' : 'installed';
+
+        console.log(chalk.green(`\n✓ Commita skill ${action} for ${agents.join(', ')}\n`));
+      } catch (error) {
+        if (error instanceof Error) {
+          console.error(chalk.red(`\n❌ Error: ${error.message}\n`));
+        } else {
+          console.error(chalk.red('\n❌ An unknown error occurred\n'));
+        }
+        process.exit(1);
+      }
+    });
+
   await program.parseAsync(process.argv);
 }
 
+async function selectHarnesses(
+  handler: SkillsHandler,
+  requestedHarnesses: string[] | undefined,
+  skipPrompt: boolean,
+): Promise<string[] | undefined> {
+  if (requestedHarnesses && requestedHarnesses.length > 0) {
+    return requestedHarnesses;
+  }
+
+  const detectedHarnesses = await handler.detectInstalledHarnesses();
+  if (skipPrompt) {
+    if (detectedHarnesses.length === 0) {
+      throw new Error('No installed harnesses were detected. Pass --agent to select one explicitly.');
+    }
+    return detectedHarnesses;
+  }
+
+  if (!process.stdin.isTTY || !process.stdout.isTTY) {
+    throw new Error('No interactive terminal is available. Pass --agent to select a harness.');
+  }
+
+  const selectedHarnesses = await prompts.multiselect({
+    message: 'Which harnesses do you want to install to?',
+    options: SUPPORTED_HARNESSES.map(harness => ({
+      value: harness,
+      label: HARNESS_DISPLAY_NAMES[harness],
+    })),
+    initialValues: detectedHarnesses,
+    required: true,
+  });
+
+  if (prompts.isCancel(selectedHarnesses)) {
+    prompts.cancel('Skill installation cancelled.');
+    return undefined;
+  }
+
+  return selectedHarnesses as HarnessName[];
+}
