@@ -80,6 +80,28 @@ commita set PROVIDER=gemini
 commita --all
 ```
 
+## Coding Agent Skill
+
+Install the bundled Commita skill and choose the coding-agent harnesses that should receive it:
+
+```bash
+commita skills install
+```
+
+In an interactive terminal, Commita shows a checkbox list for Claude Code, Codex, Cursor, Gemini CLI, GitHub Copilot, and OpenCode. Detected harnesses are preselected.
+
+For scripts and CI, select harnesses explicitly:
+
+```bash
+commita skills install --agent codex claude-code
+```
+
+Use `--yes` to install to every detected harness without showing the selector. Each installation uses the harness's native global skills directory. Existing skills are preserved by default. To replace them with the version bundled with your installed Commita CLI, run:
+
+```bash
+commita skills install --force
+```
+
 ## Configuration
 
 ### `commita set` (recommended)
