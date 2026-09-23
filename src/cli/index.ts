@@ -87,6 +87,24 @@ export async function runCLI() {
     .command('set <key-value>')
     .description('Set configuration value (format: KEY=value or KEY to prompt)')
     .option('-l, --local', 'Set in project .commita file instead of global ~/.commita')
+    .addHelpText('after', `
+Available configuration keys:
+  PROVIDER              AI provider: openai or gemini
+  MODEL                 Provider-specific model name
+  OPENAI_API_KEY        OpenAI API key
+  GEMINI_API_KEY        Gemini API key
+  COMMIT_STYLE          Commit message style: conventional or emoji
+  PROMPT_STYLE          Prompt style: default, detailed, minimal, or custom
+  PROMPT_TEMPLATE       Prompt template text
+  CUSTOM_PROMPT         Custom prompt text
+  GROUP_BY              Grouping mode: folder or semantic
+  GROUP_DEPTH           Folder grouping depth: integer >= 1
+  MAX_FILES_PER_GROUP   Maximum group size: integer >= 0 (0 = off)
+  CONFIRM_THRESHOLD     Confirmation file count: integer >= 1
+  ATOMIC                Roll back commits on failure: true or false
+  REQUIRE_CLEAN_INDEX   Require a clean index with --all: true or false
+  DEFAULT_IGNORES       Use built-in ignore patterns: true or false
+`)
     .action(async (keyValue: string, options: SetOptions) => {
       try {
         const handler = new SetHandler();
