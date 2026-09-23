@@ -50,7 +50,7 @@ export class AIService {
         system: 'You are a helpful assistant that generates concise git commit messages. The response should be plain text without any markdown formatting.',
         prompt,
         temperature: 0.7,
-        maxTokens: 500,
+        maxOutputTokens: 500,
       });
 
       let message = text.replace(/^```\n*((.*\n*)+)```$/, '$1').trim() || '';
