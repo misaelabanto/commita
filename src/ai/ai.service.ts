@@ -49,7 +49,6 @@ export class AIService {
         model,
         system: 'You are a helpful assistant that generates concise git commit messages. The response should be plain text without any markdown formatting.',
         prompt,
-        temperature: 0.7,
         maxOutputTokens: 500,
       });
 
@@ -99,7 +98,6 @@ export class AIService {
         model,
         system: 'You group changed files into git commits. You respond with JSON only, no markdown formatting and no commentary.',
         prompt,
-        temperature: 0.2,
         maxOutputTokens: GROUPING_MAX_TOKENS,
       });
 
